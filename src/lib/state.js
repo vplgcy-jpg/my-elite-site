@@ -225,3 +225,59 @@ export function advancePhase(state) {
 export function endDeload(state) {
   return { ...state, phase: 0, cycle: state.cycle + 1, log: {} };
 }
+
+/* --------------------------------------------------------------- programs */
+
+/* Switch between the 3-day adaptation and the 5-day program as written.
+   History, maxes and symptom log all survive — a lift with no training max
+   (overhead press, coming from the 3-day) routes itself to a test day. */
+export function switchProgram(state, program) {
+  if (!PROGRAMS[program] || program === state.program) return state;
+  return { ...state, program, log: {} };
+}
+
+/* Bar weight is per lift, because it isn't always 45.
+   A Smith machine bar is 15-25 lbs and its fixed path removes the stabiliser
+   demand, so a Smith number is not a free-bar number. Changing the bar type
+   invalidates the training max on purpose. */
+export const BARS = {
+  free: { label: "Free barbell", weight: 45 },
+  smith: { label: "Smith machine", weight: 20 },
+  trap: { label: "Trap bar", weight: 45 },
+  dumbbell: { label: "Dumbbells", weight: 0 },
+};
+
+export function barFor(state, lift) {
+  const b = state.bars?.[lift];
+  if (!b) return { type: "free", weight: state.settings?.bar ?? 45 };
+  return { type: b.type, weight: b.weight ?? BARS[b.type]?.weight ?? 45 };
+}
+
+export function setBar(state, lift, type, weight) {
+  const prev = barFor(state, lift);
+  const next = { type, weight: weight ?? BARS[type]?.weight ?? 45 };
+  /* Only a change of TYPE invalidates the max. Correcting the weight of the
+     same bar is just a measurement fix. */
+  const invalidates = prev.type !== type;
+  return {
+    ...state,
+    bars: { ...(state.bars || {}), [lift]: next },
+    tm: invalidates ? { ...state.tm, [lift]: 0 } : state.tm,
+    retestReason: invalidates
+      ? { lift, from: BARS[prev.type]?.label || prev.type, to: BARS[type]?.label || type }
+      : state.retestReason || null,
+  };
+}
+
+/* Send one lift back to the test-day protocol without touching anything else. */
+export function retestLift(state, lift) {
+  return {
+    ...state,
+    tm: { ...state.tm, [lift]: 0 },
+    repeats: { ...(state.repeats || {}), [lift]: 0 },
+  };
+}
+
+export function clearRetestReason(state) {
+  return { ...state, retestReason: null };
+}

@@ -176,3 +176,85 @@ export function strengthSeries(history, liftKey) {
     .filter(Boolean)
     .sort((a, b) => new Date(a.date) - new Date(b.date));
 }
+
+/* -------------------------------------------------------------- readiness
+
+   The honest answer to "I want more volume" is not an argument, it's an
+   instrument. This reads the last few sessions and says whether the work is
+   landing or whether you're digging a hole. Missed reps and hard-flagged sets
+   are the earliest signals that volume has outrun recovery — they show up well
+   before a stalled cycle does, which is the whole point of watching them. */
+
+export function readiness(state, window = 6) {
+  const sessions = (state.history || []).filter((h) => Array.isArray(h.exercises)).slice(0, window);
+  if (sessions.length < 2)
+    return { status: "unknown", sessions: sessions.length, headline: "Not enough logged yet", why: [], metrics: null };
+
+  let prescribed = 0, performed = 0, doneSets = 0, hardSets = 0, missedSets = 0, skipped = 0;
+  for (const s of sessions) {
+    skipped += Math.max(0, (s.setsTotal || 0) - (s.setsDone || 0));
+    for (const ex of s.exercises) {
+      const target = Number(ex.targetReps) || 0;
+      if (!target) continue;
+      prescribed += (ex.targetSets || 0) * target;
+      for (const set of ex.sets || []) {
+        if (!set.done) continue;
+        doneSets += 1;
+        const r = set.reps == null ? target : set.reps;
+        performed += r;
+        if (r < target) missedSets += 1;
+        if (set.hard) hardSets += 1;
+      }
+    }
+  }
+
+  const completion = prescribed ? performed / prescribed : 0;
+  const missRate = doneSets ? missedSets / doneSets : 0;
+  const hardRate = doneSets ? hardSets / doneSets : 0;
+  const skipRate = sessions.reduce((n, s) => n + (s.setsTotal || 0), 0);
+  const abandonRate = skipRate ? skipped / skipRate : 0;
+
+  /* Symptom levels over the same span — a rising joint is a recovery signal
+     as much as a missed rep is. */
+  const since = new Date(sessions[sessions.length - 1].date);
+  const symp = (state.symptoms || []).filter((s) => new Date(s.date) >= since);
+  const avgSymptom = symp.length ? symp.reduce((n, s) => n + (s.level || 0), 0) / symp.length : null;
+  const flaring = avgSymptom != null && avgSymptom >= 3.5;
+
+  const metrics = { sessions: sessions.length, completion, missRate, hardRate, abandonRate, avgSymptom };
+  const why = [];
+  let score = 0;
+
+  if (missRate > 0.15) { score += 2; why.push({ src: MINE, text: `${Math.round(missRate * 100)}% of your completed sets came up short of the prescribed reps. Over 15% usually means the volume, not the weight.` }); }
+  else if (missRate > 0.05) { score += 1; why.push({ src: MINE, text: `${Math.round(missRate * 100)}% of sets short. Worth watching, not worth acting on yet.` }); }
+
+  if (abandonRate > 0.2) { score += 2; why.push({ src: MINE, text: `You're leaving ${Math.round(abandonRate * 100)}% of prescribed sets undone. Sessions you don't finish are the clearest sign the plan is longer than your day.` }); }
+
+  if (hardRate > 0.4) { score += 1; why.push({ src: MINE, text: `${Math.round(hardRate * 100)}% of sets flagged hard. Some of that is the program working as intended — most of it isn't.` }); }
+
+  if (flaring) { score += 2; why.push({ src: MINE, text: `Your shoulder is averaging ${avgSymptom.toFixed(1)}/5 over this span. That's the signal that outranks the others.` }); }
+
+  if (score === 0) why.push({ src: MINE, text: `${Math.round(completion * 100)}% of prescribed reps across ${sessions.length} sessions, few short sets. Whatever you're doing is being absorbed. Keep going.` });
+
+  /* Any signal firing at all is worth a watch — reporting "you're absorbing
+     the work" in the same breath as "13% of your sets came up short" would
+     make the headline contradict the numbers under it. */
+  const status = score >= 3 ? "digging" : score >= 1 ? "watch" : "absorbing";
+  return {
+    status,
+    sessions: sessions.length,
+    metrics,
+    headline:
+      status === "digging" ? "The volume has outrun your recovery"
+        : status === "watch" ? "Early warning signs"
+          : "You're absorbing the work",
+    why,
+    /* Only offered, never applied. */
+    suggestion:
+      status === "digging"
+        ? "Cut to the 3-day for one cycle, or take the deload week. Not because you can't handle it — because the log says it isn't landing."
+        : status === "watch"
+          ? "Hold here. Don't add anything for a cycle and see if the misses clear on their own."
+          : null,
+  };
+}

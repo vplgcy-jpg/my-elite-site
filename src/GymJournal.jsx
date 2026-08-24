@@ -6,8 +6,8 @@ import {
   PROGRAMS, PHASES, DELOAD, phaseAt, buildSession, warmupSets, round5,
   LIFT_LABEL, LIFT_START, LIFT_JUMP, ABS,
 } from "./lib/program.js";
-import { coachReport, applyRecommendations, inSessionAdvice, strengthSeries, SRC } from "./lib/coach.js";
-import { injuryFlag, cappedWeight, STAGES, REGIONS, DEFAULT_INJURIES } from "./lib/injury.js";
+import { coachReport, applyRecommendations, inSessionAdvice, strengthSeries, readiness, SRC } from "./lib/coach.js";
+import { injuryFlag, cappedWeight, STAGES, REGIONS, DEFAULT_INJURIES, ADDABLE } from "./lib/injury.js";
 import { mobilityFor, DAILY_JOINT, PERISCAP_EXTRA } from "./lib/mobility.js";
 import PlateBar from "./components/PlateBar.jsx";
 import SetGrid from "./components/SetGrid.jsx";
@@ -476,7 +476,8 @@ function ExerciseCard({ ex, state, log, dayIdx, save, onToggle, showWarm, setSho
     }
   }
 
-  const warm = ex.kind === "main" && state.settings.showWarmups ? warmupSets(weight, state.settings.bar) : [];
+  const bar = ex.lift ? S.barFor(state, ex.lift).weight : state.settings.bar;
+  const warm = ex.kind === "main" && state.settings.showWarmups ? warmupSets(weight, bar) : [];
 
   return (
     <div
@@ -517,7 +518,7 @@ function ExerciseCard({ ex, state, log, dayIdx, save, onToggle, showWarm, setSho
             {ex.targetSets} sets × {ex.targetReps} reps
             {ex.kind === "dynamic" && " · move it fast, never to failure"}
           </div>
-          <div style={{ marginBottom: 14 }}><PlateBar total={weight} bar={state.settings.bar} /></div>
+          <div style={{ marginBottom: 14 }}><PlateBar total={weight} bar={bar} /></div>
 
           {ex.kind === "main" && warm.length > 0 && (
             <div style={{ marginBottom: 14 }}>
@@ -775,6 +776,8 @@ function CoachView({ state, save }) {
         Every call below shows the numbers behind it and where the rule came from, so you can disagree
         on the evidence instead of guessing what it's doing.
       </p>
+
+      <ReadinessCard state={state} />
 
       {report.perLift.map((r) => (
         <div key={r.lift} style={{ ...card, borderColor: statusColour(r.status) }}>
@@ -1039,7 +1042,7 @@ function MoreView({ state, save, program }) {
   return (
     <div style={{ padding: "24px 18px 0" }}>
       <div style={{ display: "flex", gap: 6, marginBottom: 22, overflowX: "auto" }}>
-        {[["maxes", "Maxes"], ["injury", "Injury"], ["settings", "Settings"], ["guide", "Guide"]].map(([k, n]) => (
+        {[["maxes", "Maxes"], ["program", "Program"], ["injury", "Injury"], ["settings", "Settings"], ["guide", "Guide"]].map(([k, n]) => (
           <button key={k} onClick={() => setTab(k)} style={{
             flex: "1 0 auto", padding: "10px 14px", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap",
             background: tab === k ? C.steel : C.panel, color: tab === k ? "#0B0E12" : C.dim,
@@ -1048,6 +1051,7 @@ function MoreView({ state, save, program }) {
         ))}
       </div>
       {tab === "maxes" && <Maxes state={state} save={save} program={program} />}
+      {tab === "program" && <ProgramPanel state={state} save={save} />}
       {tab === "injury" && <InjuryPanel state={state} save={save} />}
       {tab === "settings" && <Settings state={state} save={save} />}
       {tab === "guide" && <Guide state={state} />}
@@ -1057,6 +1061,7 @@ function MoreView({ state, save, program }) {
 }
 
 function Maxes({ state, save, program }) {
+  const [confirm, setConfirm] = useState(null);
   const adjust = (k, d) =>
     save({ ...state, tm: { ...state.tm, [k]: Math.max(0, (state.tm[k] || 0) + d) } });
   return (
@@ -1091,8 +1096,70 @@ function Maxes({ state, save, program }) {
               ))}
             </div>
           )}
+
+          <div style={{ marginTop: 18, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
+            <div style={{ ...lbl, fontSize: 9, marginBottom: 8 }}>What you lift it on</div>
+            <div style={{ display: "flex", gap: 5, marginBottom: 8 }}>
+              {Object.entries(S.BARS).filter(([t]) => t !== "dumbbell").map(([type, b]) => {
+                const on = S.barFor(state, k).type === type;
+                return (
+                  <button
+                    key={type}
+                    onClick={() => on ? null : setConfirm({ lift: k, type })}
+                    aria-pressed={on}
+                    style={{
+                      flex: 1, padding: "9px 4px", fontSize: 10, fontWeight: 700, borderRadius: 7,
+                      cursor: on ? "default" : "pointer",
+                      background: on ? C.steel : "transparent",
+                      color: on ? "#0B0E12" : C.dim,
+                      border: `1px solid ${on ? C.steel : C.line}`,
+                    }}
+                  >
+                    {b.label}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ fontSize: 11, color: C.faint, lineHeight: 1.6 }}>
+              Bar weighs {S.barFor(state, k).weight} lbs — the plate math is built on that.
+              {S.barFor(state, k).type === "smith" && " A Smith bar is lighter than a free bar and its fixed path does your stabilising for you, so this number won't transfer."}
+            </div>
+            {state.tm[k] > 0 && (
+              <button
+                onClick={() => setConfirm({ lift: k, retest: true })}
+                style={{ ...ghostBtn, fontSize: 12, padding: 11, marginTop: 10 }}
+              >
+                Re-test this lift
+              </button>
+            )}
+          </div>
         </div>
       ))}
+
+      <Confirm
+        open={confirm !== null}
+        danger
+        title={confirm?.retest ? `Re-test ${LIFT_LABEL[confirm.lift]}?` : "Change the bar?"}
+        body={
+          confirm?.retest
+            ? "Clears the training max and gives you the test-day protocol next time this lift comes up. Your history stays."
+            : confirm
+              ? `Switching ${LIFT_LABEL[confirm.lift]} to a ${S.BARS[confirm.type].label.toLowerCase()} clears its training max, because a max on one bar isn't a max on another. You'll get a test day next time it comes up.`
+              : ""
+        }
+        confirmLabel={confirm?.retest ? "Re-test it" : "Change it"}
+        onConfirm={() => {
+          const before = state;
+          save(
+            confirm.retest
+              ? S.retestLift(state, confirm.lift)
+              : S.setBar(state, confirm.lift, confirm.type),
+            { undo: before, undoLabel: `${LIFT_LABEL[confirm.lift]} needs re-testing` }
+          );
+          setConfirm(null);
+        }}
+        onCancel={() => setConfirm(null)}
+      />
     </>
   );
 }
@@ -1158,6 +1225,19 @@ function InjuryPanel({ state, save }) {
 
           <button onClick={() => toggleMute(inj.id)} style={{ ...ghostBtn, fontSize: 12, padding: 12 }}>
             {inj.muted ? "Un-mute flags" : "Mute flags for now"}
+          </button>
+        </div>
+      ))}
+
+      {ADDABLE.filter((a) => !injuries.some((i) => i.id === a.id)).map((a) => (
+        <div key={a.id} style={{ ...card, borderStyle: "dashed" }}>
+          <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>{a.label}</div>
+          <div style={{ fontSize: 12, color: C.dim, lineHeight: 1.7, marginBottom: 14 }}>{a.hint}</div>
+          <button
+            onClick={() => save({ ...state, injuries: [...injuries, a] })}
+            style={{ ...ghostBtn, fontSize: 12, padding: 12 }}
+          >
+            Add this one
           </button>
         </div>
       ))}
@@ -1256,7 +1336,11 @@ function Guide({ state }) {
     ["Abs",
       "Hanging leg raises, ball crunches, bicycles — supersetted back to back, 3 rounds, as many reps as you can. 2-3 times a week, on off days or after a session."],
     ["Eating",
-      "The program assumes a caloric surplus and a lean bulking phase. Without that the weights won't go up no matter how well you train."],
+      "The program assumes a caloric surplus and a lean bulking phase. Without that the weights won't go up no matter how well you train. Your numbers: about 2,900 calories and 175g protein a day. That protein figure is one gram per pound of bodyweight, which is the top of what the research actually supports — going to 250 or 300g costs real money and buys nothing."],
+    ["Eating when you can't store food",
+      "No fridge means everything has to be either eaten within ten minutes of cooking or shelf-stable enough to live in the car. What works: eggs cooked fresh, tuna and chicken pouches, a whey tub in the car, oats, peanut butter, a rotisserie chicken eaten across a shift. That combination gets you to 175g without refrigeration. On a 10-hour shift, the protein you actually eat beats the meal plan you couldn't follow."],
+    ["Sleep is part of the program",
+      "This is the uncomfortable one. Training is the stimulus; sleep and food are where the adaptation actually happens. On broken sleep you can still do the work — you just convert less of it. That's not a reason to train less, it's the reason the Coach tab watches your missed reps: it's the earliest honest signal of whether the volume is turning into anything."],
     ["Your shoulder",
       "The flags come from which tissue a movement loads, not from the word 'shoulder'. A periscapular problem and a shoulder-joint problem want opposite advice: face pulls and reverse pec deck protect the joint but load the scapular retractors directly. That's why they're flagged for you and dips aren't."],
   ];
@@ -1281,5 +1365,106 @@ function Guide({ state }) {
         </div>
       ))}
     </>
+  );
+}
+
+/* ------------------------------------------------------------ program swap */
+function ProgramPanel({ state, save }) {
+  const [confirm, setConfirm] = useState(null);
+  const current = PROGRAMS[state.program];
+
+  const swap = (id) => {
+    const before = state;
+    save(S.switchProgram(state, id), { undo: before, undoLabel: `Switched to the ${PROGRAMS[id].label}` });
+    setConfirm(null);
+  };
+
+  return (
+    <>
+      <h2 style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-0.02em", margin: "0 0 6px" }}>Program</h2>
+      <p style={{ color: C.dim, fontSize: 13, lineHeight: 1.7, marginBottom: 22 }}>
+        Switch whenever you want. Your maxes, history and symptom log all carry over. A lift with no
+        max yet just routes itself to a test day.
+      </p>
+
+      {Object.values(PROGRAMS).map((p) => {
+        const active = p.id === state.program;
+        return (
+          <div key={p.id} style={{ ...card, borderColor: active ? C.steel : C.line }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+              <div style={{ fontSize: 18, fontWeight: 700 }}>{p.label}</div>
+              {active && <div style={{ ...lbl, fontSize: 10, color: C.steel }}>Current</div>}
+            </div>
+            <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.7, marginBottom: 12 }}>{p.blurb}</div>
+            <div style={{ fontSize: 12, color: C.faint, lineHeight: 1.7, marginBottom: active ? 0 : 14 }}>
+              {p.id === "full5"
+                ? "Four percentage lifts including overhead press. Weighted dips are in. 7-8 exercises a session, 90-120 minutes, five days a week. This is the program exactly as Kido wrote it."
+                : "Three percentage lifts. Accessory volume cut, weighted dips out, overhead press demoted to a light accessory. Roughly 60 minutes, three non-consecutive days."}
+            </div>
+            {!active && (
+              <button onClick={() => setConfirm(p.id)} style={{ ...ghostBtn, fontSize: 13, padding: 14 }}>
+                Switch to the {p.label}
+              </button>
+            )}
+          </div>
+        );
+      })}
+
+      <div style={{ ...card, borderStyle: "dashed" }}>
+        <div style={{ ...lbl, marginBottom: 8 }}>Worth knowing, once</div>
+        <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.7 }}>
+          The 5-day isn't harder in a way you can decide to tolerate — it's more total work per week
+          than the 3-day, and whether that turns into muscle depends on sleep and food rather than on
+          willingness. The Coach tab reads your last six sessions and tells you which way it's going.
+          That's the number to argue with, not this one.
+        </div>
+      </div>
+
+      <Confirm
+        open={confirm !== null}
+        title={confirm ? `Switch to the ${PROGRAMS[confirm].label}?` : ""}
+        body={
+          confirm === "full5"
+            ? "Five days a week, four percentage lifts, weighted dips included. Your maxes and history come with you. Overhead press has no max yet, so it'll start with a test day."
+            : "Three days a week, accessory volume cut, dips out. Nothing is lost — you can switch back any time."
+        }
+        confirmLabel="Switch"
+        onConfirm={() => swap(confirm)}
+        onCancel={() => setConfirm(null)}
+      />
+    </>
+  );
+}
+
+/* ---------------------------------------------------------------- readiness */
+function ReadinessCard({ state }) {
+  const r = readiness(state);
+  if (r.status === "unknown") return null;
+  const colour = r.status === "digging" ? C.fail : r.status === "watch" ? C.warn : C.done;
+
+  return (
+    <div style={{ ...card, borderColor: colour }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+        <div style={{ ...lbl, fontSize: 10, color: colour }}>Recovery · last {r.sessions} sessions</div>
+      </div>
+      <div style={{ fontSize: 18, fontWeight: 800, color: colour, marginBottom: 12 }}>{r.headline}</div>
+
+      <div style={{ display: "flex", gap: 16, marginBottom: 14, flexWrap: "wrap" }}>
+        <Stat n={`${Math.round(r.metrics.completion * 100)}%`} l="reps hit" />
+        <Stat n={`${Math.round(r.metrics.missRate * 100)}%`} l="sets short" />
+        <Stat n={`${Math.round(r.metrics.abandonRate * 100)}%`} l="left undone" />
+        {r.metrics.avgSymptom != null && <Stat n={r.metrics.avgSymptom.toFixed(1)} l="shoulder" />}
+      </div>
+
+      {r.why.map((w, i) => (
+        <div key={i} style={{ fontSize: 13, color: C.dim, lineHeight: 1.6, marginBottom: 8 }}>{w.text}</div>
+      ))}
+
+      {r.suggestion && (
+        <div style={{ marginTop: 10, paddingTop: 12, borderTop: `1px solid ${C.line}`, fontSize: 13, color: C.text, lineHeight: 1.7 }}>
+          {r.suggestion}
+        </div>
+      )}
+    </div>
   );
 }

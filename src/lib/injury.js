@@ -261,3 +261,27 @@ export function adaptationNeed(exercises, injuries) {
     recommended: flagged.length >= 2,
   };
 }
+
+/* Injury profiles that can be switched on. The periscapular one is configured;
+   the others are here because a lifter often has more than one thing going on
+   and inventing a second diagnosis on their behalf would be worse than asking. */
+export const ADDABLE = [
+  {
+    id: "glenohumeral",
+    region: "glenohumeral",
+    label: "Shoulder joint (cuff / labrum / capsule)",
+    hint: "Turn this on if the pain is in the joint itself rather than between the shoulder blade and spine. It's what flags weighted dips and heavy overhead press.",
+    stage: "healing",
+    keep: [],
+    muted: false,
+  },
+  {
+    id: "lowback",
+    region: "lowback",
+    label: "Low back",
+    hint: "Flags heavy hinging — deadlifts, bent-over rows, RDLs.",
+    stage: "healing",
+    keep: [],
+    muted: false,
+  },
+];

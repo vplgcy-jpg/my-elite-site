@@ -377,3 +377,125 @@ describe("accessibility", () => {
     expect(screen.getByRole("button", { name: "Train" })).toHaveAttribute("aria-current", "page");
   });
 });
+
+describe("program switching", () => {
+  beforeEach(() => seed());
+
+  it("offers both versions and marks the current one", async () => {
+    const user = userEvent.setup();
+    render(<GymJournal />);
+    await screen.findByRole("heading", { name: "Upper Power" });
+    await user.click(screen.getByRole("button", { name: "More" }));
+    await user.click(await screen.findByRole("button", { name: "Program" }));
+    expect(await screen.findByText("Current")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Switch to the 5-day/i })).toBeInTheDocument();
+  });
+
+  it("says plainly what the 5-day puts back", async () => {
+    const user = userEvent.setup();
+    render(<GymJournal />);
+    await screen.findByRole("heading", { name: "Upper Power" });
+    await user.click(screen.getByRole("button", { name: "More" }));
+    await user.click(await screen.findByRole("button", { name: "Program" }));
+    expect(screen.getByText(/Weighted dips are in/i)).toBeInTheDocument();
+  });
+
+  it("switches to the 5-day and shows its days", async () => {
+    const user = userEvent.setup();
+    render(<GymJournal />);
+    await screen.findByRole("heading", { name: "Upper Power" });
+    await user.click(screen.getByRole("button", { name: "More" }));
+    await user.click(await screen.findByRole("button", { name: "Program" }));
+    await user.click(screen.getByRole("button", { name: /Switch to the 5-day/i }));
+    await user.click(await screen.findByRole("button", { name: "Switch" }));
+    await user.click(screen.getByRole("button", { name: "Train" }));
+    expect(await screen.findByRole("button", { name: "Pull Hypertrophy" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Push Hypertrophy/ })).toBeInTheDocument();
+  });
+});
+
+describe("bar type and re-testing", () => {
+  beforeEach(() => seed());
+
+  const openMaxes = async (user) => {
+    await screen.findByRole("heading", { name: "Upper Power" });
+    await user.click(screen.getByRole("button", { name: "More" }));
+    await screen.findByRole("heading", { name: "Training maxes" });
+  };
+
+  it("warns that a Smith number won't transfer", async () => {
+    const user = userEvent.setup();
+    render(<GymJournal />);
+    await openMaxes(user);
+    await user.click(screen.getAllByRole("button", { name: "Smith machine" })[0]);
+    expect(await screen.findByRole("dialog")).toHaveTextContent(/isn't a max on another/i);
+  });
+
+  it("clears the max when the bar actually changes", async () => {
+    const user = userEvent.setup();
+    render(<GymJournal />);
+    await openMaxes(user);
+    await user.click(screen.getAllByRole("button", { name: "Smith machine" })[0]);
+    await user.click(await screen.findByRole("button", { name: "Change it" }));
+    await user.click(screen.getByRole("button", { name: "Train" }));
+    expect(await screen.findByText(/Find your Bench Press max/i)).toBeInTheDocument();
+  });
+
+  it("offers a re-test per lift", async () => {
+    const user = userEvent.setup();
+    render(<GymJournal />);
+    await openMaxes(user);
+    await user.click(screen.getAllByRole("button", { name: "Re-test this lift" })[0]);
+    expect(await screen.findByRole("dialog")).toHaveTextContent(/Your history stays/i);
+  });
+});
+
+describe("readiness", () => {
+  it("stays quiet until there's something to read", async () => {
+    seed();
+    const user = userEvent.setup();
+    render(<GymJournal />);
+    await screen.findByRole("heading", { name: "Upper Power" });
+    await user.click(screen.getByRole("button", { name: "Coach" }));
+    await screen.findByRole("heading", { name: "Coach" });
+    expect(screen.queryByText(/Recovery · last/)).not.toBeInTheDocument();
+  });
+
+  it("tells you when the volume has outrun recovery", async () => {
+    const bad = Array.from({ length: 3 }, (_, d) => ({
+      date: new Date(2026, 2, d + 1).toISOString(),
+      cycle: 1, phase: 0, mainLift: "bench", setsTotal: 10, setsDone: 7,
+      exercises: [{
+        name: "Bench Press", kind: "main", weight: 140, targetSets: 10, targetReps: 6,
+        sets: Array.from({ length: 10 }, (_, i) =>
+          i < 3 ? { done: false, reps: null, hard: false } : { done: true, reps: 3, hard: false }),
+      }],
+    }));
+    seed({ history: bad });
+    const user = userEvent.setup();
+    render(<GymJournal />);
+    await screen.findByRole("heading", { name: "Upper Power" });
+    await user.click(screen.getByRole("button", { name: "Coach" }));
+    expect(await screen.findByText(/outrun your recovery/i)).toBeInTheDocument();
+    expect(screen.getByText(/because the log says it isn't landing/i)).toBeInTheDocument();
+  });
+});
+
+describe("adding another injury", () => {
+  it("offers the shoulder joint separately rather than assuming it", async () => {
+    seed();
+    const user = userEvent.setup();
+    render(<GymJournal />);
+    await screen.findByRole("heading", { name: "Upper Power" });
+    await user.click(screen.getByRole("button", { name: "More" }));
+    await user.click(await screen.findByRole("button", { name: "Injury" }));
+    expect(await screen.findByText(/Shoulder joint \(cuff/i)).toBeInTheDocument();
+    const before = screen.getAllByRole("button", { name: "Add this one" }).length;
+    await user.click(screen.getAllByRole("button", { name: "Add this one" })[0]);
+    // it moves from the offer list into the active list, so it stops being offered
+    await waitFor(() =>
+      expect(screen.queryAllByRole("button", { name: "Add this one" })).toHaveLength(before - 1)
+    );
+    expect(screen.getByText(/ball and socket itself/i)).toBeInTheDocument();
+  });
+});
