@@ -5,6 +5,7 @@
 
 import { PROGRAMS, buildSession, round5, REST } from "./program.js";
 import { DEFAULT_INJURIES, adaptExercises, adaptationNeed } from "./injury.js";
+import { dayKey, DEFAULT_TARGETS } from "./food.js";
 
 export const SCHEMA = 2;
 
@@ -21,6 +22,11 @@ export function newState(opts = {}) {
     lastWeights: {},
     symptoms: [],
     mobilityLog: {},
+    food: {},
+    customFoods: [],
+    foodOverrides: {},
+    targets: { ...DEFAULT_TARGETS },
+    bodyweight: 175,
     injuries: opts.injuries || DEFAULT_INJURIES,
     settings: {
       restMain: REST.main,
@@ -280,4 +286,42 @@ export function retestLift(state, lift) {
 
 export function clearRetestReason(state) {
   return { ...state, retestReason: null };
+}
+
+/* ------------------------------------------------------------------- food */
+
+export function addFood(state, id, servings = 1, now = new Date()) {
+  const key = dayKey(now);
+  const day = state.food?.[key] || [];
+  const existing = day.find((e) => e.id === id);
+  const next = existing
+    ? day.map((e) => (e.id === id ? { ...e, servings: e.servings + servings } : e))
+    : [...day, { id, servings }];
+  return { ...state, food: { ...(state.food || {}), [key]: next.filter((e) => e.servings > 0) } };
+}
+
+export function setServings(state, id, servings, now = new Date()) {
+  const key = dayKey(now);
+  const day = (state.food?.[key] || [])
+    .map((e) => (e.id === id ? { ...e, servings } : e))
+    .filter((e) => e.servings > 0);
+  return { ...state, food: { ...(state.food || {}), [key]: day } };
+}
+
+export function foodToday(state, now = new Date()) {
+  return state.food?.[dayKey(now)] || [];
+}
+
+/* A label that disagrees with the built-in number wins. */
+export function overrideFood(state, id, patch) {
+  return { ...state, foodOverrides: { ...(state.foodOverrides || {}), [id]: { ...(state.foodOverrides?.[id] || {}), ...patch } } };
+}
+
+export function addCustomFood(state, food) {
+  const id = `custom-${(state.customFoods || []).length + 1}-${food.name.toLowerCase().replace(/\W+/g, "")}`;
+  return { ...state, customFoods: [...(state.customFoods || []), { ...food, id, tags: ["custom"] }] };
+}
+
+export function setTargets(state, targets) {
+  return { ...state, targets: { ...(state.targets || DEFAULT_TARGETS), ...targets } };
 }

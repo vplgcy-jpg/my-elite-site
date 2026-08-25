@@ -9,6 +9,7 @@ import {
 import { coachReport, applyRecommendations, inSessionAdvice, strengthSeries, readiness, SRC } from "./lib/coach.js";
 import { injuryFlag, cappedWeight, STAGES, REGIONS, DEFAULT_INJURIES, ADDABLE } from "./lib/injury.js";
 import { mobilityFor, DAILY_JOINT, PERISCAP_EXTRA } from "./lib/mobility.js";
+import { FOODS, byId, dayTotals, remaining, suggest, targetsFor } from "./lib/food.js";
 import PlateBar from "./components/PlateBar.jsx";
 import SetGrid from "./components/SetGrid.jsx";
 import StrengthChart from "./components/StrengthChart.jsx";
@@ -16,6 +17,7 @@ import RestTimerBar, { useRestTimer } from "./components/RestTimer.jsx";
 
 const TABS = [
   ["today", "Train"],
+  ["food", "Food"],
   ["mobility", "Mobility"],
   ["coach", "Coach"],
   ["log", "Log"],
@@ -127,6 +129,7 @@ export default function GymJournal() {
       {view === "today" && (
         <Today state={state} save={save} dayIdx={dayIdx} setDayIdx={setDayIdx} rest={rest} setView={setView} />
       )}
+      {view === "food" && <FoodView state={state} save={save} />}
       {view === "mobility" && <MobilityView state={state} save={save} dayIdx={dayIdx} />}
       {view === "coach" && <CoachView state={state} save={save} />}
       {view === "log" && <LogView state={state} save={save} />}
@@ -154,9 +157,9 @@ export default function GymJournal() {
             onClick={() => setView(k)}
             aria-current={view === k ? "page" : undefined}
             style={{
-              flex: 1, padding: "16px 0 18px", background: "none", border: "none",
-              color: view === k ? C.steel : C.dim, fontSize: 11, fontWeight: 700,
-              letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer",
+              flex: 1, padding: "16px 2px 18px", background: "none", border: "none",
+              color: view === k ? C.steel : C.dim, fontSize: 10, fontWeight: 700,
+              letterSpacing: "0.03em", textTransform: "uppercase", cursor: "pointer",
             }}
           >
             {name}
@@ -1468,3 +1471,186 @@ function ReadinessCard({ state }) {
     </div>
   );
 }
+
+/* --------------------------------------------------------------------- food */
+function FoodView({ state, save }) {
+  const [tab, setTab] = useState("today");
+  const [editing, setEditing] = useState(null);
+  const custom = state.customFoods || [];
+  const over = state.foodOverrides || {};
+  const targets = state.targets || { cal: 2900, protein: 175 };
+  const entries = S.foodToday(state);
+  const totals = dayTotals(entries, custom, over);
+  const left = remaining(totals, targets);
+  const next = suggest(totals, targets, custom, over);
+
+  const add = (id) => save(S.addFood(state, id, 1));
+  const bump = (id, d) => {
+    const e = entries.find((x) => x.id === id);
+    save(S.setServings(state, id, Math.max(0, (e?.servings || 0) + d)));
+  };
+
+  return (
+    <div style={{ padding: "24px 18px 0" }}>
+      <h2 style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em", margin: "0 0 16px" }}>Food</h2>
+
+      <div style={card}>
+        <Meter label="Protein" have={totals.protein} target={targets.protein} unit="g" colour={C.done} />
+        <div style={{ height: 16 }} />
+        <Meter label="Calories" have={totals.cal} target={targets.cal} unit="" colour={C.steel} />
+        <div style={{ fontSize: 12, color: C.dim, lineHeight: 1.7, marginTop: 16 }}>
+          {left.protein > 0
+            ? `${left.protein}g protein and ${Math.max(0, left.cal)} calories still to go today.`
+            : `Protein done. ${left.cal > 0 ? `${left.cal} calories left if you want them.` : "You're over on calories — fine on a bulk, worth noticing if it's every day."}`}
+        </div>
+      </div>
+
+      {next.length > 0 && (
+        <div style={{ ...card, borderStyle: "dashed" }}>
+          <div style={{ ...lbl, marginBottom: 10 }}>Quickest way to close the gap</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {next.map((food) => (
+              <button key={food.id} onClick={() => add(food.id)} style={chip}>
+                + {food.name} <span style={{ color: C.done }}>{food.protein}g</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 6, margin: "18px 0" }}>
+        {[["today", `Today · ${entries.length}`], ["car", "In the car"], ["cook", "Cook now"]].map(([k, n]) => (
+          <button key={k} onClick={() => setTab(k)} style={{
+            flex: 1, padding: "10px 6px", fontSize: 11, fontWeight: 700,
+            background: tab === k ? C.steel : C.panel, color: tab === k ? "#0B0E12" : C.dim,
+            border: `1px solid ${tab === k ? C.steel : C.line}`, borderRadius: 8, cursor: "pointer",
+          }}>{n}</button>
+        ))}
+      </div>
+
+      {tab === "today" ? (
+        entries.length === 0 ? (
+          <p style={{ color: C.dim, fontSize: 14, lineHeight: 1.7 }}>
+            Nothing logged today. Tap “In the car” or “Cook now” and add what you ate.
+          </p>
+        ) : (
+          entries.map((e) => {
+            const food = byId(e.id, custom, over);
+            if (!food) return null;
+            return (
+              <div key={e.id} style={{ ...card, padding: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 15, fontWeight: 700 }}>{food.name}</div>
+                    <div style={{ fontSize: 12, color: C.faint }}>
+                      {e.servings} × {food.serving} · {food.protein * e.servings}g protein · {food.cal * e.servings} cal
+                    </div>
+                  </div>
+                  <button onClick={() => bump(e.id, -1)} aria-label={`One less ${food.name}`} style={stepBtn}>−</button>
+                  <div style={{ fontFamily: mono, fontSize: 17, fontWeight: 700, minWidth: 24, textAlign: "center" }}>
+                    {e.servings}
+                  </div>
+                  <button onClick={() => bump(e.id, 1)} aria-label={`One more ${food.name}`} style={stepBtn}>+</button>
+                </div>
+              </div>
+            );
+          })
+        )
+      ) : (
+        [...FOODS, ...custom]
+          .filter((x) => x.tags?.includes(tab) || (tab === "car" && x.tags?.includes("custom")))
+          .map((x) => {
+            const food = { ...x, ...(over[x.id] || {}) };
+            const inToday = entries.find((e) => e.id === food.id);
+            return (
+              <div key={food.id} style={{ ...card, padding: 16, borderColor: inToday ? C.done : C.line }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <button
+                    onClick={() => add(food.id)}
+                    style={{ flex: 1, background: "none", border: "none", textAlign: "left", cursor: "pointer", padding: 0 }}
+                  >
+                    <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>
+                      {inToday ? "✓ " : ""}{food.name}
+                    </div>
+                    <div style={{ fontSize: 12, color: C.faint }}>
+                      {food.serving} · <span style={{ color: C.done }}>{food.protein}g</span> · {food.cal} cal
+                    </div>
+                  </button>
+                  <button onClick={() => add(food.id)} aria-label={`Add ${food.name}`} style={{ ...stepBtn, borderColor: C.steel, color: C.steel }}>+</button>
+                </div>
+                <button
+                  onClick={() => setEditing(editing === food.id ? null : food.id)}
+                  aria-expanded={editing === food.id}
+                  style={{ background: "none", border: "none", color: C.faint, fontSize: 11, cursor: "pointer", padding: "8px 0 0" }}
+                >
+                  {editing === food.id ? "Close" : "My label says something different"}
+                </button>
+                {editing === food.id && (
+                  <div style={{ display: "flex", gap: 10, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.line}` }}>
+                    {[["protein", "Protein g"], ["cal", "Calories"]].map(([k, name]) => (
+                      <div key={k} style={{ flex: 1 }}>
+                        <label htmlFor={`${food.id}-${k}`} style={{ ...lbl, fontSize: 9, display: "block", marginBottom: 6 }}>{name}</label>
+                        <input
+                          id={`${food.id}-${k}`}
+                          type="number" inputMode="numeric" min="0"
+                          value={food[k]}
+                          onChange={(ev) => save(S.overrideFood(state, food.id, { [k]: Number(ev.target.value) || 0 }))}
+                          style={{
+                            width: "100%", padding: 10, fontSize: 15, fontWeight: 700, background: C.bg,
+                            border: `1px solid ${C.line}`, borderRadius: 8, color: C.text,
+                            fontFamily: mono, boxSizing: "border-box",
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })
+      )}
+
+      <div style={{ ...card, borderStyle: "dashed", marginTop: 18 }}>
+        <div style={{ ...lbl, marginBottom: 8 }}>Why these numbers</div>
+        <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.7 }}>
+          {targets.protein}g protein is one gram per pound of bodyweight — the top of what actually
+          builds muscle. More costs money and does nothing. {targets.cal} calories is a lean-bulk
+          surplus: enough to grow on, not so much that it's all fat.
+          Everything listed here keeps without a fridge or gets eaten straight off the pan.
+        </div>
+      </div>
+      <div style={{ height: 30 }} />
+    </div>
+  );
+}
+
+function Meter({ label: name, have, target, unit, colour }) {
+  const pct = Math.min(1, target ? have / target : 0);
+  const over = have > target;
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
+        <div style={{ ...lbl, fontSize: 10 }}>{name}</div>
+        <div style={{ fontFamily: mono, fontSize: 15, fontWeight: 700 }}>
+          <span style={{ color: over ? C.warn : colour }}>{have}</span>
+          <span style={{ color: C.faint }}> / {target}{unit}</span>
+        </div>
+      </div>
+      <div
+        role="progressbar"
+        aria-valuenow={have}
+        aria-valuemin={0}
+        aria-valuemax={target}
+        aria-label={`${name}: ${have} of ${target}${unit}`}
+        style={{ height: 10, background: C.bg, borderRadius: 5, overflow: "hidden", border: `1px solid ${C.line}` }}
+      >
+        <div style={{ height: "100%", width: `${pct * 100}%`, background: over ? C.warn : colour, transition: "width 0.3s" }} />
+      </div>
+    </div>
+  );
+}
+
+const chip = {
+  padding: "10px 14px", borderRadius: 20, border: `1px solid ${C.line}`,
+  background: "transparent", color: C.text, fontSize: 13, fontWeight: 600, cursor: "pointer",
+};

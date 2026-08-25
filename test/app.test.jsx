@@ -499,3 +499,74 @@ describe("adding another injury", () => {
     expect(screen.getByText(/ball and socket itself/i)).toBeInTheDocument();
   });
 });
+
+describe("food", () => {
+  beforeEach(() => seed());
+
+  const openFood = async (user) => {
+    await screen.findByRole("heading", { name: "Upper Power" });
+    await user.click(screen.getByRole("button", { name: "Food" }));
+    await screen.findByRole("heading", { name: "Food" });
+  };
+
+  it("shows the day's targets", async () => {
+    const user = userEvent.setup();
+    render(<GymJournal />);
+    await openFood(user);
+    expect(screen.getByLabelText("Protein: 0 of 175g")).toBeInTheDocument();
+    expect(screen.getByLabelText("Calories: 0 of 2900")).toBeInTheDocument();
+  });
+
+  it("adds food in one tap and updates the totals", async () => {
+    const user = userEvent.setup();
+    render(<GymJournal />);
+    await openFood(user);
+    await user.click(screen.getByRole("button", { name: "In the car" }));
+    await user.click((await screen.findAllByRole("button", { name: /^Add Whey shake/ }))[0]);
+    expect(await screen.findByLabelText("Protein: 24 of 175g")).toBeInTheDocument();
+  });
+
+  it("says what's still left in the day", async () => {
+    const user = userEvent.setup();
+    render(<GymJournal />);
+    await openFood(user);
+    expect(screen.getByText(/175g protein and 2900 calories still to go/i)).toBeInTheDocument();
+  });
+
+  it("suggests how to close the protein gap", async () => {
+    const user = userEvent.setup();
+    render(<GymJournal />);
+    await openFood(user);
+    expect(screen.getByText(/Quickest way to close the gap/i)).toBeInTheDocument();
+  });
+
+  it("lets your own label override the built-in number", async () => {
+    const user = userEvent.setup();
+    render(<GymJournal />);
+    await openFood(user);
+    await user.click(screen.getByRole("button", { name: "In the car" }));
+    await user.click((await screen.findAllByText(/My label says something different/i))[0]);
+    const field = await screen.findByLabelText("Protein g");
+    await user.clear(field);
+    await user.type(field, "19");
+    await user.click(screen.getAllByRole("button", { name: /^Add Tuna pouch/ })[0]);
+    expect(await screen.findByLabelText("Protein: 19 of 175g")).toBeInTheDocument();
+  });
+
+  it("separates what keeps in the car from what has to be cooked", async () => {
+    const user = userEvent.setup();
+    render(<GymJournal />);
+    await openFood(user);
+    await user.click(screen.getByRole("button", { name: "Cook now" }));
+    expect(await screen.findByText("Rotisserie chicken")).toBeInTheDocument();
+    expect(screen.queryByText("Tuna pouch")).not.toBeInTheDocument();
+  });
+
+  it("explains the numbers rather than just asserting them", async () => {
+    const user = userEvent.setup();
+    render(<GymJournal />);
+    await openFood(user);
+    expect(screen.getByText(/one gram per pound of bodyweight/i)).toBeInTheDocument();
+    expect(screen.getByText(/More costs money and does nothing/i)).toBeInTheDocument();
+  });
+});
