@@ -23,22 +23,23 @@ export default function PlateBar({ total, bar = 45 }) {
         aria-label={`Per side: ${text}`}
         style={{ display: "flex", alignItems: "center", gap: 3, height: 50 }}
       >
-        <div aria-hidden="true" style={{ width: 14, height: 5, background: C.faint, borderRadius: 2 }} />
+        <div aria-hidden="true" style={{ width: 14, height: 5, background: C.faint, borderRadius: 0 }} />
         {plates.map((p, i) => (
           <div
             key={i}
             aria-hidden="true"
             title={`${p.w} lb`}
             style={{
-              width: 20, height: p.h, background: p.color, borderRadius: 3,
+              width: 20, height: p.h, background: "transparent",
+              border: `1px solid ${C.steel}`, borderRadius: 0,
               display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 9, fontWeight: 800, color: "#0B0E12", fontFamily: mono,
+              fontSize: 9, fontWeight: 700, color: C.steel, fontFamily: mono,
             }}
           >
             {p.w}
           </div>
         ))}
-        <div aria-hidden="true" style={{ width: 22, height: 5, background: C.faint, borderRadius: 2 }} />
+        <div aria-hidden="true" style={{ width: 22, height: 5, background: C.faint, borderRadius: 0 }} />
       </div>
       <div style={{ fontSize: 11, color: C.faint, marginTop: 2 }}>per side · {text}</div>
     </div>

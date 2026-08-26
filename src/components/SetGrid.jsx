@@ -45,9 +45,9 @@ export default function SetGrid({ exercise, log, onToggle, onReps, onHard, targe
               }
               aria-pressed={done}
               style={{
-                flex: 1, height: 54, borderRadius: 10,
+                flex: 1, height: 54, borderRadius: 0,
                 border: `1px solid ${colour}`,
-                background: done ? (short ? "rgba(251,191,36,0.14)" : "rgba(74,222,128,0.14)") : "transparent",
+                background: done ? (short ? "rgba(255,179,0,0.12)" : "rgba(205,240,50,0.12)") : "transparent",
                 color: done ? colour : C.dim,
                 fontSize: 16, fontWeight: 700, cursor: "pointer", fontFamily: mono,
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 3,
@@ -108,6 +108,6 @@ export default function SetGrid({ exercise, log, onToggle, onReps, onHard, targe
 }
 
 const stepper = {
-  width: 40, height: 40, borderRadius: 8, border: `1px solid ${C.line}`,
+  width: 40, height: 40, borderRadius: 0, border: `1px solid ${C.line}`,
   background: "transparent", color: C.text, fontSize: 18, fontWeight: 700, cursor: "pointer",
 };

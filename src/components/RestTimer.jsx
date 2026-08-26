@@ -107,6 +107,6 @@ export default function RestTimerBar({ timer, remaining, stop, bump }) {
 }
 
 const tBtn = {
-  padding: "10px 12px", borderRadius: 8, border: `1px solid ${C.line}`,
+  padding: "10px 12px", borderRadius: 0, border: `1px solid ${C.line}`,
   background: "transparent", color: C.text, fontSize: 13, fontWeight: 700, cursor: "pointer",
 };

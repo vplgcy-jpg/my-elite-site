@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { C, card, bigBtn, ghostBtn, label as lbl, mono } from "./theme.js";
+import { C, ink, card, bigBtn, ghostBtn, label as lbl, mono, display, hazard } from "./theme.js";
 import * as S from "./lib/state.js";
 import * as Store from "./lib/storage.js";
 import {
@@ -105,7 +105,7 @@ export default function GymJournal() {
         {loadError?.raw && (
           <details style={{ marginTop: 22 }}>
             <summary style={{ color: C.faint, fontSize: 12, cursor: "pointer" }}>Show raw saved data</summary>
-            <pre style={{ fontSize: 10, color: C.faint, overflowX: "auto", background: C.panel, padding: 12, borderRadius: 8, marginTop: 8 }}>
+            <pre style={{ fontSize: 10, color: C.faint, overflowX: "auto", background: C.panel, padding: 12, borderRadius: 0, marginTop: 8 }}>
               {String(loadError.raw).slice(0, 4000)}
             </pre>
           </details>
@@ -119,9 +119,9 @@ export default function GymJournal() {
   const program = PROGRAMS[state.program];
 
   return (
-    <div style={{ background: C.bg, color: C.text, minHeight: "100vh", fontFamily: "ui-sans-serif, system-ui, sans-serif", paddingBottom: rest.running ? 150 : 92 }}>
+    <div style={{ background: C.bg, color: C.text, minHeight: "100vh", fontFamily: mono, paddingBottom: rest.running ? 150 : 92 }}>
       {saveError && (
-        <div role="alert" style={{ background: "rgba(248,113,113,0.14)", borderBottom: `1px solid ${C.fail}`, color: C.fail, padding: "10px 16px", fontSize: 12 }}>
+        <div role="alert" style={{ background: "rgba(255,77,46,0.12)", borderBottom: `1px solid ${C.fail}`, color: C.fail, padding: "10px 16px", fontSize: 12 }}>
           Last change didn't save. Your screen is ahead of your storage — don't close the app.
         </div>
       )}
@@ -136,14 +136,14 @@ export default function GymJournal() {
       {view === "more" && <MoreView state={state} save={save} program={program} />}
 
       {undo && (
-        <div style={{ position: "fixed", bottom: rest.running ? 132 : 74, left: 12, right: 12, zIndex: 30, background: C.panel2, border: `1px solid ${C.line}`, borderRadius: 10, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ position: "fixed", bottom: rest.running ? 132 : 74, left: 12, right: 12, zIndex: 30, background: C.panel2, border: `1px solid ${C.line}`, borderRadius: 0, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ flex: 1, fontSize: 13, color: C.dim }}>{undo.label}</div>
           <button onClick={() => { save(undo.state); setUndo(null); }} style={{ background: "none", border: "none", color: C.steel, fontWeight: 800, fontSize: 13, cursor: "pointer" }}>UNDO</button>
         </div>
       )}
 
       {toast && !undo && (
-        <div role="status" style={{ position: "fixed", bottom: rest.running ? 132 : 74, left: 12, right: 12, zIndex: 30, background: C.panel2, border: `1px solid ${C.line}`, borderRadius: 10, padding: "12px 14px", fontSize: 13, color: C.dim }}>
+        <div role="status" style={{ position: "fixed", bottom: rest.running ? 132 : 74, left: 12, right: 12, zIndex: 30, background: C.panel2, border: `1px solid ${C.line}`, borderRadius: 0, padding: "12px 14px", fontSize: 13, color: C.dim }}>
           {toast}
         </div>
       )}
@@ -172,7 +172,7 @@ export default function GymJournal() {
 
 function Shell({ children }) {
   return (
-    <div style={{ background: C.bg, color: C.text, minHeight: "100vh", padding: "48px 22px", fontFamily: "ui-sans-serif, system-ui, sans-serif" }}>
+    <div style={{ background: C.bg, color: C.text, minHeight: "100vh", padding: "48px 22px", fontFamily: mono }}>
       {children}
     </div>
   );
@@ -199,7 +199,7 @@ function Setup({ onDone }) {
 
   return (
     <Shell>
-      <h1 style={{ fontSize: 32, fontWeight: 800, letterSpacing: "-0.02em", margin: "0 0 8px" }}>
+      <h1 style={{ fontSize: 32, fontWeight: 400, fontFamily: display, textTransform: "uppercase", letterSpacing: "0.01em", margin: "0 0 8px" }}>
         {step === "program" ? "Pick your week" : "Set up your lifts"}
       </h1>
 
@@ -240,7 +240,7 @@ function Setup({ onDone }) {
                 placeholder="lbs for 3 reps"
                 style={{
                   width: "100%", padding: 15, fontSize: 22, fontWeight: 700,
-                  background: C.panel, border: `1px solid ${C.line}`, borderRadius: 10,
+                  background: C.panel, border: `1px solid ${C.line}`, borderRadius: 0,
                   color: C.text, fontFamily: mono, boxSizing: "border-box",
                 }}
               />
@@ -266,9 +266,9 @@ function Confirm({ open, title, body, confirmLabel, danger, onConfirm, onCancel 
   return (
     <div
       role="dialog" aria-modal="true" aria-label={title}
-      style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(8,10,14,0.78)", display: "flex", alignItems: "center", padding: 22 }}
+      style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(5,6,4,0.84)", display: "flex", alignItems: "center", padding: 22 }}
     >
-      <div style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 16, padding: 24, width: "100%" }}>
+      <div style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 0, padding: 24, width: "100%" }}>
         <div style={{ fontSize: 19, fontWeight: 800, marginBottom: 10 }}>{title}</div>
         <div style={{ fontSize: 14, color: C.dim, lineHeight: 1.7, marginBottom: 22 }}>{body}</div>
         <button onClick={onConfirm} style={{ ...bigBtn, background: danger ? C.warn : C.steel }}>{confirmLabel}</button>
@@ -323,6 +323,8 @@ function Today({ state, save, dayIdx, setDayIdx, rest, setView }) {
         </div>
       </div>
 
+      <div aria-hidden="true" style={{ ...hazard, marginBottom: 18 }} />
+
       <div style={{ display: "flex", gap: 6, marginBottom: 22, overflowX: "auto" }}>
         {program.days.map((d, i) => (
           <button
@@ -332,9 +334,9 @@ function Today({ state, save, dayIdx, setDayIdx, rest, setView }) {
             style={{
               flex: "1 0 auto", padding: "10px 12px", fontSize: 11, fontWeight: 700,
               background: i === dayIdx ? C.steel : C.panel,
-              color: i === dayIdx ? "#0B0E12" : C.dim,
+              color: i === dayIdx ? ink : C.dim,
               border: `1px solid ${i === dayIdx ? C.steel : C.line}`,
-              borderRadius: 8, cursor: "pointer", whiteSpace: "nowrap",
+              borderRadius: 0, cursor: "pointer", whiteSpace: "nowrap",
             }}
           >
             {d.name}
@@ -342,7 +344,7 @@ function Today({ state, save, dayIdx, setDayIdx, rest, setView }) {
         ))}
       </div>
 
-      <h2 style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em", margin: "0 0 4px" }}>{day.name}</h2>
+      <h2 style={{ fontSize: 26, fontWeight: 400, fontFamily: display, textTransform: "uppercase", letterSpacing: "0.01em", margin: "0 0 4px" }}>{day.name}</h2>
       <div style={{ fontSize: 12, color: C.faint, marginBottom: 20 }}>
         {done}/{total} sets · suggested next after your last session
       </div>
@@ -561,7 +563,7 @@ function ExerciseCard({ ex, state, log, dayIdx, save, onToggle, showWarm, setSho
               onChange={(e) => save(S.setWeight(state, dayIdx, ex.id, ex.name, e.target.value))}
               style={{
                 width: 92, padding: "10px 12px", fontSize: 17, fontWeight: 700,
-                background: C.bg, border: `1px solid ${C.line}`, borderRadius: 8,
+                background: C.bg, border: `1px solid ${C.line}`, borderRadius: 0,
                 color: C.text, fontFamily: mono,
               }}
             />
@@ -584,7 +586,7 @@ function ExerciseCard({ ex, state, log, dayIdx, save, onToggle, showWarm, setSho
       />
 
       {advice && (
-        <div style={{ marginTop: 12, padding: 12, borderRadius: 8, background: advice.tone === "fail" ? "rgba(248,113,113,0.1)" : "rgba(251,191,36,0.1)", border: `1px solid ${advice.tone === "fail" ? C.fail : C.warn}` }}>
+        <div style={{ marginTop: 12, padding: 12, borderRadius: 0, background: advice.tone === "fail" ? "rgba(255,77,46,0.10)" : "rgba(255,179,0,0.10)", border: `1px solid ${advice.tone === "fail" ? C.fail : C.warn}` }}>
           <div style={{ ...lbl, fontSize: 10, color: advice.tone === "fail" ? C.fail : C.warn, marginBottom: 6 }}>Coach</div>
           <div style={{ fontSize: 13, color: C.text, lineHeight: 1.6 }}>{advice.text}</div>
           {advice.drop > 0 && (
@@ -600,7 +602,7 @@ function InjuryFlag({ flag }) {
   const colour = flag.severity === "avoid" ? C.fail : flag.severity === "watch" ? C.steel : C.warn;
   const word = flag.severity === "avoid" ? "Avoid" : flag.severity === "watch" ? "Watching" : "Caution";
   return (
-    <div style={{ marginTop: 10, padding: 12, borderRadius: 8, border: `1px solid ${colour}`, background: "rgba(255,255,255,0.02)" }}>
+    <div style={{ marginTop: 10, padding: 12, borderRadius: 0, border: `1px solid ${colour}`, background: "rgba(255,255,255,0.02)" }}>
       <div style={{ ...lbl, fontSize: 10, color: colour, marginBottom: 6 }}>
         {word} · {flag.injury.label}
       </div>
@@ -642,7 +644,7 @@ function TestBlock({ lift, liftKey, state, save }) {
         placeholder="lbs"
         style={{
           width: "100%", padding: 15, fontSize: 21, fontWeight: 700, background: C.bg,
-          border: `1px solid ${C.line}`, borderRadius: 10, color: C.text,
+          border: `1px solid ${C.line}`, borderRadius: 0, color: C.text,
           fontFamily: mono, marginBottom: 12, boxSizing: "border-box",
         }}
       />
@@ -674,7 +676,7 @@ function MobilityView({ state, save, dayIdx }) {
 
   return (
     <div style={{ padding: "24px 18px 0" }}>
-      <h2 style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em", margin: "0 0 6px" }}>Mobility</h2>
+      <h2 style={{ fontSize: 26, fontWeight: 400, fontFamily: display, textTransform: "uppercase", letterSpacing: "0.01em", margin: "0 0 6px" }}>Mobility</h2>
       <p style={{ color: C.dim, fontSize: 13, lineHeight: 1.7, marginBottom: 20 }}>
         The program says to foam roll and warm up before every workout. Dynamic work before you lift,
         static holds after, and a short joint routine on off days.
@@ -688,9 +690,9 @@ function MobilityView({ state, save, dayIdx }) {
             style={{
               flex: 1, padding: "10px 6px", fontSize: 11, fontWeight: 700,
               background: tab === k ? C.mob : C.panel,
-              color: tab === k ? "#0B0E12" : C.dim,
+              color: tab === k ? ink : C.dim,
               border: `1px solid ${tab === k ? C.mob : C.line}`,
-              borderRadius: 8, cursor: "pointer",
+              borderRadius: 0, cursor: "pointer",
             }}
           >
             {name}
@@ -721,7 +723,7 @@ function MobilityView({ state, save, dayIdx }) {
               ...card, width: "100%", textAlign: "left", display: "block",
               cursor: isSession ? "pointer" : "default", padding: 16,
               borderColor: checked ? C.mob : C.line,
-              background: checked ? "rgba(167,139,250,0.08)" : C.panel,
+              background: checked ? "rgba(233,238,221,0.06)" : C.panel,
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
@@ -774,7 +776,7 @@ function CoachView({ state, save }) {
 
   return (
     <div style={{ padding: "24px 18px 0" }}>
-      <h2 style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em", margin: "0 0 6px" }}>Coach</h2>
+      <h2 style={{ fontSize: 26, fontWeight: 400, fontFamily: display, textTransform: "uppercase", letterSpacing: "0.01em", margin: "0 0 6px" }}>Coach</h2>
       <p style={{ color: C.dim, fontSize: 13, lineHeight: 1.7, marginBottom: 22 }}>
         Every call below shows the numbers behind it and where the rule came from, so you can disagree
         on the evidence instead of guessing what it's doing.
@@ -870,14 +872,14 @@ function LogView({ state, save }) {
 
   return (
     <div style={{ padding: "24px 18px 0" }}>
-      <h2 style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em", margin: "0 0 16px" }}>Log</h2>
+      <h2 style={{ fontSize: 26, fontWeight: 400, fontFamily: display, textTransform: "uppercase", letterSpacing: "0.01em", margin: "0 0 16px" }}>Log</h2>
 
       <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
         {[["sessions", `Sessions · ${h.length}`], ["progress", "Progress"], ["symptoms", `Symptoms · ${(state.symptoms || []).length}`]].map(([k, name]) => (
           <button key={k} onClick={() => setTab(k)} style={{
             flex: 1, padding: "10px 6px", fontSize: 11, fontWeight: 700,
-            background: tab === k ? C.steel : C.panel, color: tab === k ? "#0B0E12" : C.dim,
-            border: `1px solid ${tab === k ? C.steel : C.line}`, borderRadius: 8, cursor: "pointer",
+            background: tab === k ? C.steel : C.panel, color: tab === k ? ink : C.dim,
+            border: `1px solid ${tab === k ? C.steel : C.line}`, borderRadius: 0, cursor: "pointer",
           }}>{name}</button>
         ))}
       </div>
@@ -989,7 +991,7 @@ function SymptomLog({ state, save }) {
               aria-label={`Level ${n} of 5`}
               aria-pressed={level === n}
               style={{
-                flex: 1, height: 46, borderRadius: 8, fontWeight: 700, fontFamily: mono, fontSize: 15,
+                flex: 1, height: 46, borderRadius: 0, fontWeight: 700, fontFamily: mono, fontSize: 15,
                 cursor: "pointer",
                 border: `1px solid ${level === n ? levelColour(n) : C.line}`,
                 background: level === n ? "rgba(255,255,255,0.05)" : "transparent",
@@ -1010,7 +1012,7 @@ function SymptomLog({ state, save }) {
           aria-label="Symptom note"
           style={{
             width: "100%", padding: 13, fontSize: 14, background: C.bg,
-            border: `1px solid ${C.line}`, borderRadius: 8, color: C.text,
+            border: `1px solid ${C.line}`, borderRadius: 0, color: C.text,
             marginBottom: 12, boxSizing: "border-box",
           }}
         />
@@ -1048,8 +1050,8 @@ function MoreView({ state, save, program }) {
         {[["maxes", "Maxes"], ["program", "Program"], ["injury", "Injury"], ["settings", "Settings"], ["guide", "Guide"]].map(([k, n]) => (
           <button key={k} onClick={() => setTab(k)} style={{
             flex: "1 0 auto", padding: "10px 14px", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap",
-            background: tab === k ? C.steel : C.panel, color: tab === k ? "#0B0E12" : C.dim,
-            border: `1px solid ${tab === k ? C.steel : C.line}`, borderRadius: 8, cursor: "pointer",
+            background: tab === k ? C.steel : C.panel, color: tab === k ? ink : C.dim,
+            border: `1px solid ${tab === k ? C.steel : C.line}`, borderRadius: 0, cursor: "pointer",
           }}>{n}</button>
         ))}
       </div>
@@ -1069,7 +1071,7 @@ function Maxes({ state, save, program }) {
     save({ ...state, tm: { ...state.tm, [k]: Math.max(0, (state.tm[k] || 0) + d) } });
   return (
     <>
-      <h2 style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-0.02em", margin: "0 0 6px" }}>Training maxes</h2>
+      <h2 style={{ fontSize: 24, fontWeight: 400, fontFamily: display, textTransform: "uppercase", letterSpacing: "0.01em", margin: "0 0 6px" }}>Training maxes</h2>
       <p style={{ color: C.dim, fontSize: 13, lineHeight: 1.7, marginBottom: 22 }}>
         Every working weight comes from these. The coach moves them for you at the end of a cycle —
         this is the manual override.
@@ -1111,10 +1113,10 @@ function Maxes({ state, save, program }) {
                     onClick={() => on ? null : setConfirm({ lift: k, type })}
                     aria-pressed={on}
                     style={{
-                      flex: 1, padding: "9px 4px", fontSize: 10, fontWeight: 700, borderRadius: 7,
+                      flex: 1, padding: "9px 4px", fontSize: 10, fontWeight: 700, borderRadius: 0,
                       cursor: on ? "default" : "pointer",
                       background: on ? C.steel : "transparent",
-                      color: on ? "#0B0E12" : C.dim,
+                      color: on ? ink : C.dim,
                       border: `1px solid ${on ? C.steel : C.line}`,
                     }}
                   >
@@ -1168,7 +1170,7 @@ function Maxes({ state, save, program }) {
 }
 
 const stepBtn = {
-  width: 48, height: 48, borderRadius: 10, border: `1px solid ${C.line}`,
+  width: 48, height: 48, borderRadius: 0, border: `1px solid ${C.line}`,
   background: "transparent", color: C.text, fontSize: 22, fontWeight: 700, cursor: "pointer",
 };
 
@@ -1181,7 +1183,7 @@ function InjuryPanel({ state, save }) {
 
   return (
     <>
-      <h2 style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-0.02em", margin: "0 0 6px" }}>Injury</h2>
+      <h2 style={{ fontSize: 24, fontWeight: 400, fontFamily: display, textTransform: "uppercase", letterSpacing: "0.01em", margin: "0 0 6px" }}>Injury</h2>
       <p style={{ color: C.dim, fontSize: 13, lineHeight: 1.7, marginBottom: 8 }}>
         This changes which movements get flagged and how heavy the directly-loading ones go. Move it as things change.
       </p>
@@ -1205,9 +1207,9 @@ function InjuryPanel({ state, save }) {
                 onClick={() => setStage(inj.id, s.key)}
                 aria-pressed={inj.stage === s.key}
                 style={{
-                  flex: 1, padding: "9px 4px", fontSize: 10, fontWeight: 700, borderRadius: 7, cursor: "pointer",
+                  flex: 1, padding: "9px 4px", fontSize: 10, fontWeight: 700, borderRadius: 0, cursor: "pointer",
                   background: inj.stage === s.key ? C.warn : "transparent",
-                  color: inj.stage === s.key ? "#0B0E12" : C.dim,
+                  color: inj.stage === s.key ? ink : C.dim,
                   border: `1px solid ${inj.stage === s.key ? C.warn : C.line}`,
                 }}
               >
@@ -1265,7 +1267,7 @@ function Settings({ state, save }) {
 
   return (
     <>
-      <h2 style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-0.02em", margin: "0 0 22px" }}>Settings</h2>
+      <h2 style={{ fontSize: 24, fontWeight: 400, fontFamily: display, textTransform: "uppercase", letterSpacing: "0.01em", margin: "0 0 22px" }}>Settings</h2>
 
       <div style={card}>
         <div style={{ ...lbl, marginBottom: 14 }}>Rest timers</div>
@@ -1356,7 +1358,7 @@ function Guide({ state }) {
 
   return (
     <>
-      <h2 style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-0.02em", margin: "0 0 8px" }}>How this works</h2>
+      <h2 style={{ fontSize: 24, fontWeight: 400, fontFamily: display, textTransform: "uppercase", letterSpacing: "0.01em", margin: "0 0 8px" }}>How this works</h2>
       <p style={{ color: C.faint, fontSize: 12, lineHeight: 1.7, marginBottom: 26 }}>
         Program: Saiyan Powerbuilding by Matthew Kido (saiyanarmy.com). Percentages, set/rep schemes,
         rest ranges and progression rules are his. Anything this app adds is marked.
@@ -1384,7 +1386,7 @@ function ProgramPanel({ state, save }) {
 
   return (
     <>
-      <h2 style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-0.02em", margin: "0 0 6px" }}>Program</h2>
+      <h2 style={{ fontSize: 24, fontWeight: 400, fontFamily: display, textTransform: "uppercase", letterSpacing: "0.01em", margin: "0 0 6px" }}>Program</h2>
       <p style={{ color: C.dim, fontSize: 13, lineHeight: 1.7, marginBottom: 22 }}>
         Switch whenever you want. Your maxes, history and symptom log all carry over. A lift with no
         max yet just routes itself to a test day.
@@ -1492,7 +1494,7 @@ function FoodView({ state, save }) {
 
   return (
     <div style={{ padding: "24px 18px 0" }}>
-      <h2 style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em", margin: "0 0 16px" }}>Food</h2>
+      <h2 style={{ fontSize: 26, fontWeight: 400, fontFamily: display, textTransform: "uppercase", letterSpacing: "0.01em", margin: "0 0 16px" }}>Food</h2>
 
       <div style={card}>
         <Meter label="Protein" have={totals.protein} target={targets.protein} unit="g" colour={C.done} />
@@ -1522,8 +1524,8 @@ function FoodView({ state, save }) {
         {[["today", `Today · ${entries.length}`], ["car", "In the car"], ["cook", "Cook now"]].map(([k, n]) => (
           <button key={k} onClick={() => setTab(k)} style={{
             flex: 1, padding: "10px 6px", fontSize: 11, fontWeight: 700,
-            background: tab === k ? C.steel : C.panel, color: tab === k ? "#0B0E12" : C.dim,
-            border: `1px solid ${tab === k ? C.steel : C.line}`, borderRadius: 8, cursor: "pointer",
+            background: tab === k ? C.steel : C.panel, color: tab === k ? ink : C.dim,
+            border: `1px solid ${tab === k ? C.steel : C.line}`, borderRadius: 0, cursor: "pointer",
           }}>{n}</button>
         ))}
       </div>
@@ -1597,7 +1599,7 @@ function FoodView({ state, save }) {
                           onChange={(ev) => save(S.overrideFood(state, food.id, { [k]: Number(ev.target.value) || 0 }))}
                           style={{
                             width: "100%", padding: 10, fontSize: 15, fontWeight: 700, background: C.bg,
-                            border: `1px solid ${C.line}`, borderRadius: 8, color: C.text,
+                            border: `1px solid ${C.line}`, borderRadius: 0, color: C.text,
                             fontFamily: mono, boxSizing: "border-box",
                           }}
                         />
@@ -1642,7 +1644,7 @@ function Meter({ label: name, have, target, unit, colour }) {
         aria-valuemin={0}
         aria-valuemax={target}
         aria-label={`${name}: ${have} of ${target}${unit}`}
-        style={{ height: 10, background: C.bg, borderRadius: 5, overflow: "hidden", border: `1px solid ${C.line}` }}
+        style={{ height: 10, background: C.bg, borderRadius: 0, overflow: "hidden", border: `1px solid ${C.line}` }}
       >
         <div style={{ height: "100%", width: `${pct * 100}%`, background: over ? C.warn : colour, transition: "width 0.3s" }} />
       </div>
@@ -1651,6 +1653,6 @@ function Meter({ label: name, have, target, unit, colour }) {
 }
 
 const chip = {
-  padding: "10px 14px", borderRadius: 20, border: `1px solid ${C.line}`,
+  padding: "10px 14px", borderRadius: 0, border: `1px solid ${C.line}`,
   background: "transparent", color: C.text, fontSize: 13, fontWeight: 600, cursor: "pointer",
 };
