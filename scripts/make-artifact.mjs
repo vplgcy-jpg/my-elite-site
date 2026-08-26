@@ -23,7 +23,8 @@ const html = `<meta charset="utf-8" />\n<title>Saiyan Journal</title>
   html, body { margin: 0; padding: 0; background: #080908; }
   * { -webkit-tap-highlight-color: transparent; }
   body { overscroll-behavior-y: none; }
-  input, button { font-family: inherit; }
+  html { color-scheme: dark; }
+      button, input, select, textarea { color: inherit; font-family: inherit; }
   button:focus-visible, input:focus-visible { outline: 2px solid #CDF032; outline-offset: 2px; }
 </style>
 <div id="root"></div>

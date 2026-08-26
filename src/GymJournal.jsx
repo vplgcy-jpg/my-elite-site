@@ -214,7 +214,7 @@ function Setup({ onDone }) {
               onClick={() => { setProgram(p.id); setStep("maxes"); }}
               style={{ ...card, width: "100%", textAlign: "left", cursor: "pointer", display: "block" }}
             >
-              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>
+              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: C.steel }}>
                 {p.label} {p.adapted && <span style={{ fontSize: 11, color: C.warn }}>ADAPTED</span>}
               </div>
               <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.6 }}>{p.blurb}</div>
@@ -357,7 +357,7 @@ function Today({ state, save, dayIdx, setDayIdx, rest, setView }) {
         }}
       >
         <div style={{ ...lbl, color: C.mob, marginBottom: 6 }}>Before you lift</div>
-        <div style={{ fontSize: 15, fontWeight: 700 }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>
           {mob.label} warm-up · {preDone}/{mob.pre.length} done
         </div>
         <div style={{ fontSize: 12, color: C.dim, marginTop: 4, lineHeight: 1.6 }}>
