@@ -575,3 +575,77 @@ describe("food", () => {
     expect(screen.getByText(/More costs money and does nothing/i)).toBeInTheDocument();
   });
 });
+
+describe("skipping and notes", () => {
+  beforeEach(() => seed());
+
+  const lower = async (user) => {
+    await screen.findByRole("heading", { name: "Upper Power" });
+    await user.click(screen.getByRole("button", { name: "Lower Power" }));
+    await screen.findByRole("heading", { name: "Lower Power" });
+  };
+
+  it("takes a skipped exercise out of the day's total", async () => {
+    const user = userEvent.setup();
+    render(<GymJournal />);
+    await lower(user);
+    expect(screen.getByRole("button", { name: /Finish session · 0\/21 sets/i })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Leg press: skip/i }));
+    expect(await screen.findByRole("button", { name: /Finish session · 0\/18 sets/i })).toBeInTheDocument();
+    expect(screen.getByText(/not counted against you/i)).toBeInTheDocument();
+  });
+
+  it("undoes a skip", async () => {
+    const user = userEvent.setup();
+    render(<GymJournal />);
+    await lower(user);
+    await user.click(screen.getByRole("button", { name: /Leg press: skip/i }));
+    await user.click(await screen.findByRole("button", { name: /Leg press: undo skip/i }));
+    expect(await screen.findByRole("button", { name: /Finish session · 0\/21 sets/i })).toBeInTheDocument();
+  });
+
+  it("offers a note on every exercise, not only ones with swaps", async () => {
+    const user = userEvent.setup();
+    render(<GymJournal />);
+    await lower(user);
+    // Squats has no equipment alternatives; it must still take a note
+    expect(within(document.querySelector('[data-exercise="Squats"]'))
+      .getByRole("button", { name: "Add a note" })).toBeInTheDocument();
+    expect(within(document.querySelector('[data-exercise="Leg press"]'))
+      .getByRole("button", { name: "Add a note" })).toBeInTheDocument();
+  });
+
+  it("saves a note and shows it back on the exercise", async () => {
+    const user = userEvent.setup();
+    render(<GymJournal />);
+    await lower(user);
+    await user.click(within(document.querySelector('[data-exercise="Squats"]'))
+      .getByRole("button", { name: "Add a note" }));
+    await user.type(await screen.findByLabelText("Note for Squats"), "wider stance felt better");
+    await user.click(screen.getByRole("button", { name: "Save note" }));
+    expect(await screen.findByText("wider stance felt better")).toBeInTheDocument();
+  });
+
+  it("collects notes under their own tab in the log", async () => {
+    // regression: the Notes view existed with no button to reach it
+    seed({ notes: { Squats: [{ date: new Date().toISOString(), text: "belt on last two" }] } });
+    const user = userEvent.setup();
+    render(<GymJournal />);
+    await screen.findByRole("heading", { name: "Upper Power" });
+    await user.click(screen.getByRole("button", { name: "Log", exact: true }));
+    await user.click(await screen.findByRole("button", { name: "Notes", exact: true }));
+    expect(await screen.findByText("belt on last two")).toBeInTheDocument();
+  });
+
+  it("keeps a session note with the logged session", async () => {
+    const user = userEvent.setup();
+    render(<GymJournal />);
+    await lower(user);
+    await user.click(document.querySelector('[data-exercise="Squats"] button[aria-label*="Set 1 of 4"]'));
+    await user.type(screen.getByLabelText("How did today go?"), "low sleep, bar moved fine");
+    await user.click(screen.getByRole("button", { name: /Finish session/i }));
+    await user.click(await screen.findByRole("button", { name: "Log it" }));
+    await user.click(screen.getByRole("button", { name: "Log", exact: true }));
+    expect(await screen.findByText("low sleep, bar moved fine")).toBeInTheDocument();
+  });
+});

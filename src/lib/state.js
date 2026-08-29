@@ -24,6 +24,7 @@ export function newState(opts = {}) {
     symptoms: [],
     mobilityLog: {},
     swaps: {},
+    notes: {},
     food: {},
     customFoods: [],
     foodOverrides: {},
@@ -101,7 +102,9 @@ export const sessionKey = (state, dayIdx) =>
   `c${state.cycle}p${state.phase}d${dayIdx}`;
 
 export function getLog(state, dayIdx) {
-  return state.log[sessionKey(state, dayIdx)] || { sets: {}, weights: {}, mobility: {} };
+  return (
+    state.log[sessionKey(state, dayIdx)] || { sets: {}, weights: {}, mobility: {}, skipped: {}, note: "" }
+  );
 }
 
 function writeLog(state, dayIdx, next) {
@@ -172,15 +175,68 @@ export function toggleMobility(state, dayIdx, phaseKey, idx) {
   return writeLog(state, dayIdx, { ...log, mobility });
 }
 
-export function countSets(exercises) {
-  return exercises.reduce((s, e) => s + (e.targetSets || 0), 0);
+/* Deliberately skipping an exercise is a decision, not a failure, so a skipped
+   movement leaves the denominator entirely. Sets you meant to do and didn't
+   still count against you — that distinction is the whole point of the button. */
+export function isSkipped(log, exId) {
+  return !!log.skipped?.[exId];
+}
+
+export function toggleSkip(state, dayIdx, exId) {
+  const log = getLog(state, dayIdx);
+  const skipped = { ...(log.skipped || {}) };
+  const sets = { ...log.sets };
+  if (skipped[exId]) delete skipped[exId];
+  else {
+    skipped[exId] = true;
+    /* clear anything already ticked — you can't half-skip a movement */
+    for (const k of Object.keys(sets)) if (k.startsWith(`${exId}-`)) delete sets[k];
+  }
+  return writeLog(state, dayIdx, { ...log, skipped, sets });
+}
+
+export function countSets(exercises, log) {
+  return exercises.reduce(
+    (n, e) => n + (log && isSkipped(log, e.id) ? 0 : e.targetSets || 0),
+    0
+  );
 }
 
 export function countDone(log, exercises) {
   let n = 0;
-  for (const e of exercises)
+  for (const e of exercises) {
+    if (isSkipped(log, e.id)) continue;
     for (let i = 0; i < e.targetSets; i++) if (log.sets[`${e.id}-${i}`]?.done) n += 1;
+  }
   return n;
+}
+
+/* Notes live by exercise name so they resurface the next time you do that
+   movement — that is what makes them worth writing. */
+export function addNote(state, exName, text, now = new Date()) {
+  const t = (text || "").trim();
+  if (!t) return state;
+  const prev = state.notes?.[exName] || [];
+  return {
+    ...state,
+    notes: { ...(state.notes || {}), [exName]: [{ date: now.toISOString(), text: t }, ...prev].slice(0, 20) },
+  };
+}
+
+export function lastNote(state, exName) {
+  return state.notes?.[exName]?.[0] || null;
+}
+
+export function deleteNote(state, exName, iso) {
+  const kept = (state.notes?.[exName] || []).filter((n) => n.date !== iso);
+  const notes = { ...(state.notes || {}) };
+  if (kept.length) notes[exName] = kept;
+  else delete notes[exName];
+  return { ...state, notes };
+}
+
+export function setSessionNote(state, dayIdx, text) {
+  return writeLog(state, dayIdx, { ...getLog(state, dayIdx), note: text });
 }
 
 /* Turn the in-progress log into a history entry with per-exercise detail.
@@ -189,7 +245,7 @@ export function countDone(log, exercises) {
 export function finishSession(state, dayIdx, now = new Date()) {
   const { day, exercises, adapted } = sessionFor(state, dayIdx);
   const log = getLog(state, dayIdx);
-  const detail = exercises.map((e) => ({
+  const detail = exercises.filter((e) => !isSkipped(log, e.id)).map((e) => ({
     name: e.name,
     kind: e.kind,
     lift: e.lift || null,
@@ -204,7 +260,7 @@ export function finishSession(state, dayIdx, now = new Date()) {
         : { done: false, reps: null, hard: false, style: null, assist: null };
     }),
   }));
-  const total = countSets(exercises);
+  const total = countSets(exercises, log);
   const done = countDone(log, exercises);
   const entry = {
     date: now.toISOString(),
@@ -218,6 +274,8 @@ export function finishSession(state, dayIdx, now = new Date()) {
     exercises: detail,
     setsDone: done,
     setsTotal: total,
+    skipped: exercises.filter((e) => isSkipped(log, e.id)).map((e) => e.name),
+    note: (log.note || "").trim() || null,
     mobilityPre: Object.keys(log.mobility || {}).some((k) => k.startsWith("pre-")),
     mobilityPost: Object.keys(log.mobility || {}).some((k) => k.startsWith("post-")),
   };

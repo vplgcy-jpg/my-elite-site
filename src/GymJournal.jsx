@@ -286,7 +286,7 @@ function Today({ state, save, dayIdx, setDayIdx, rest, setView }) {
   const program = PROGRAMS[state.program];
   const { day, phase, exercises, need, adapted } = S.sessionFor(state, dayIdx);
   const log = S.getLog(state, dayIdx);
-  const total = S.countSets(exercises);
+  const total = S.countSets(exercises, log);
   const done = S.countDone(log, exercises);
   const needsTest = day.main && !state.tm[day.main];
   const mob = mobilityFor(day.mobility);
@@ -412,6 +412,27 @@ function Today({ state, save, dayIdx, setDayIdx, rest, setView }) {
             </div>
           </div>
 
+          <div style={{ ...card, marginTop: 4 }}>
+            <label htmlFor="session-note" style={{ ...lbl, display: "block", marginBottom: 8 }}>
+              How did today go?
+            </label>
+            <textarea
+              id="session-note"
+              value={log.note || ""}
+              onChange={(e) => save(S.setSessionNote(state, dayIdx, e.target.value))}
+              placeholder="Energy, sleep, what felt off, what to change next time"
+              rows={3}
+              style={{
+                width: "100%", padding: 12, fontSize: 14, background: C.bg,
+                border: `1px solid ${C.line}`, borderRadius: 0, color: C.text,
+                fontFamily: mono, boxSizing: "border-box", resize: "vertical", lineHeight: 1.6,
+              }}
+            />
+            <div style={{ fontSize: 11, color: C.faint, marginTop: 8, lineHeight: 1.6 }}>
+              Saved with the session. Read them back under Log.
+            </div>
+          </div>
+
           <button
             onClick={() => setConfirm("finish")}
             disabled={done === 0}
@@ -464,6 +485,9 @@ function Today({ state, save, dayIdx, setDayIdx, rest, setView }) {
 /* --------------------------------------------------------- exercise card */
 function ExerciseCard({ ex, state, log, dayIdx, save, onToggle, showWarm, setShowWarm }) {
   const [swapping, setSwapping] = useState(false);
+  const [noting, setNoting] = useState(false);
+  const skipped = S.isSkipped(log, ex.id);
+  const note = S.lastNote(state, ex.name);
   const flag = injuryFlag(ex.name, state.injuries);
   const alts = alternativesFor(ex.swappedFrom || ex.name);
   const assistable = isAssistable(ex.name);
@@ -494,25 +518,49 @@ function ExerciseCard({ ex, state, log, dayIdx, save, onToggle, showWarm, setSho
       data-kind={ex.kind}
       style={{ ...card, borderColor: flag?.severity === "avoid" ? C.fail : C.line }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
-        <div>
-          <div style={{ fontSize: ex.kind === "main" ? 17 : 16, fontWeight: 700 }}>{ex.name}</div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: ex.kind === "main" ? 17 : 16, fontWeight: 700, color: skipped ? C.faint : C.text, textDecoration: skipped ? "line-through" : "none" }}>
+            {ex.name}
+          </div>
           {(ex.swappedFrom || ex.substitutedFrom) && (
             <div style={{ fontSize: 11, color: C.faint, marginTop: 3, fontFamily: mono }}>
               in place of {ex.swappedFrom || ex.substitutedFrom}
             </div>
           )}
         </div>
-        {ex.kind === "main" && (
-          <div style={{ ...lbl, color: C.steel, fontSize: 10 }}>
-            {Math.round((weight / (state.tm[ex.lift] || 1)) * 100)}% of TM
-          </div>
-        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {ex.kind === "main" && !skipped && (
+            <div style={{ ...lbl, color: C.steel, fontSize: 10 }}>
+              {Math.round((weight / (state.tm[ex.lift] || 1)) * 100)}% of TM
+            </div>
+          )}
+          <button
+            onClick={() => save(S.toggleSkip(state, dayIdx, ex.id))}
+            aria-pressed={skipped}
+            aria-label={skipped ? `${ex.name}: undo skip` : `${ex.name}: skip, didn't do this`}
+            style={{
+              width: 34, height: 34, flexShrink: 0, cursor: "pointer", borderRadius: 0,
+              fontFamily: mono, fontSize: 15, fontWeight: 700, lineHeight: 1,
+              background: skipped ? C.line : "transparent",
+              color: skipped ? C.text : C.faint,
+              border: `1px solid ${C.line}`,
+            }}
+          >
+            {skipped ? "\u21ba" : "\u00d7"}
+          </button>
+        </div>
       </div>
 
-      {flag && <InjuryFlag flag={flag} />}
+      {skipped ? (
+        <div style={{ fontSize: 12, color: C.faint, fontFamily: mono, marginTop: 8 }}>
+          {`Skipped \u2014 not counted against you.`}
+        </div>
+      ) : null}
 
-      {ex.kind !== "accessory" ? (
+      {!skipped && flag && <InjuryFlag flag={flag} />}
+
+      {!skipped && (ex.kind !== "accessory" ? (
         <>
           <div style={{ fontSize: ex.kind === "main" ? 54 : 34, fontWeight: 800, lineHeight: 1.05, fontFamily: mono, letterSpacing: "-0.03em", margin: "10px 0 2px" }}>
             {weight}
@@ -586,9 +634,9 @@ function ExerciseCard({ ex, state, log, dayIdx, save, onToggle, showWarm, setSho
             )}
           </div>
         </>
-      )}
+      ))}
 
-      <SetGrid
+      {!skipped && <SetGrid
         exercise={ex}
         log={log}
         target={ex.targetReps}
@@ -597,19 +645,43 @@ function ExerciseCard({ ex, state, log, dayIdx, save, onToggle, showWarm, setSho
         onReps={(i, reps) => save(S.setReps(state, dayIdx, ex.id, i, reps))}
         onHard={(i, hard) => save(S.markHard(state, dayIdx, ex.id, i, hard))}
         onStyle={(i, style) => save(S.setStyle(state, dayIdx, ex.id, i, style))}
-      />
+      />}
 
-      {alts.length > 0 && (
-        <div style={{ marginTop: 12, borderTop: `1px solid ${C.line}`, paddingTop: 10 }}>
-          <button
-            onClick={() => setSwapping((v) => !v)}
-            aria-expanded={swapping}
-            style={{ background: "none", border: "none", color: C.faint, fontSize: 11, cursor: "pointer", padding: 0, fontFamily: mono }}
-          >
-            {swapping ? "Close" : "My gym doesn\u2019t have this \u2014 swap it"}
-          </button>
-          {swapping && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+      {!skipped && (note || noting) && (
+        <NoteBlock
+          exName={ex.name}
+          note={note}
+          open={noting}
+          setOpen={setNoting}
+          state={state}
+          save={save}
+        />
+      )}
+
+      {!skipped && (
+        <div style={{ marginTop: 12, borderTop: `1px solid ${C.line}`, paddingTop: 10, display: "flex", flexWrap: "wrap", gap: 14 }}>
+          {!noting && !note && (
+            <button
+              onClick={() => setNoting(true)}
+              style={{ background: "none", border: "none", color: C.faint, fontSize: 11, cursor: "pointer", padding: 0, fontFamily: mono }}
+            >
+              Add a note
+            </button>
+          )}
+          {alts.length > 0 && (
+            <button
+              onClick={() => setSwapping((v) => !v)}
+              aria-expanded={swapping}
+              style={{ background: "none", border: "none", color: C.faint, fontSize: 11, cursor: "pointer", padding: 0, fontFamily: mono }}
+            >
+              {swapping ? "Close" : "My gym doesn\u2019t have this \u2014 swap it"}
+            </button>
+          )}
+        </div>
+      )}
+
+      {!skipped && swapping && alts.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
               {[ex.swappedFrom || ex.name, ...alts].map((name) => {
                 const on = name === ex.name;
                 return (
@@ -631,12 +703,10 @@ function ExerciseCard({ ex, state, log, dayIdx, save, onToggle, showWarm, setSho
                   </button>
                 );
               })}
-            </div>
-          )}
         </div>
       )}
 
-      {advice && (
+      {!skipped && advice && (
         <div style={{ marginTop: 12, padding: 12, borderRadius: 0, background: advice.tone === "fail" ? "rgba(255,77,46,0.10)" : "rgba(255,179,0,0.10)", border: `1px solid ${advice.tone === "fail" ? C.fail : C.warn}` }}>
           <div style={{ ...lbl, fontSize: 10, color: advice.tone === "fail" ? C.fail : C.warn, marginBottom: 6 }}>Coach</div>
           <div style={{ fontSize: 13, color: C.text, lineHeight: 1.6 }}>{advice.text}</div>
@@ -945,7 +1015,7 @@ function LogView({ state, save }) {
       <h2 style={{ fontSize: 26, fontWeight: 400, fontFamily: display, textTransform: "uppercase", letterSpacing: "0.01em", margin: "0 0 16px" }}>Log</h2>
 
       <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
-        {[["sessions", `Sessions · ${h.length}`], ["progress", "Progress"], ["symptoms", `Symptoms · ${(state.symptoms || []).length}`]].map(([k, name]) => (
+        {[["sessions", `Sessions · ${h.length}`], ["notes", "Notes"], ["progress", "Progress"], ["symptoms", `Symptoms · ${(state.symptoms || []).length}`]].map(([k, name]) => (
           <button key={k} onClick={() => setTab(k)} style={{
             flex: 1, padding: "10px 6px", fontSize: 11, fontWeight: 700,
             background: tab === k ? C.steel : C.panel, color: tab === k ? ink : C.dim,
@@ -968,6 +1038,7 @@ function LogView({ state, save }) {
         </>
       )}
 
+      {tab === "notes" && <NotesView state={state} save={save} />}
       {tab === "symptoms" && <SymptomLog state={state} save={save} />}
 
       {tab === "sessions" && (
@@ -1008,6 +1079,16 @@ function LogView({ state, save }) {
                 ) : (
                   <div style={{ fontSize: 13, color: C.dim }}>
                     Accessory day · {e.setsDone}/{e.setsTotal} sets
+                  </div>
+                )}
+                {e.note && (
+                  <div style={{ marginTop: 10, borderLeft: `2px solid ${C.steel}`, paddingLeft: 10, fontSize: 13, color: C.text, lineHeight: 1.6 }}>
+                    {e.note}
+                  </div>
+                )}
+                {e.skipped?.length > 0 && (
+                  <div style={{ fontSize: 11, color: C.faint, marginTop: 8, fontFamily: mono }}>
+                    skipped: {e.skipped.join(", ")}
                   </div>
                 )}
                 <div style={{ display: "flex", gap: 10, marginTop: 10, alignItems: "center", flexWrap: "wrap" }}>
@@ -1726,3 +1807,125 @@ const chip = {
   padding: "10px 14px", borderRadius: 0, border: `1px solid ${C.line}`,
   background: "transparent", color: C.text, fontSize: 13, fontWeight: 600, cursor: "pointer",
 };
+
+/* ---------------------------------------------------------------- notes */
+function NoteBlock({ exName, note, open, setOpen, state, save }) {
+  const [draft, setDraft] = useState("");
+  const history = state.notes?.[exName] || [];
+  const [showAll, setShowAll] = useState(false);
+
+  const commit = () => {
+    if (draft.trim()) save(S.addNote(state, exName, draft), { toast: "Note saved" });
+    setDraft("");
+    setOpen(false);
+  };
+
+  return (
+    <div style={{ marginTop: 12, borderTop: `1px solid ${C.line}`, paddingTop: 10 }}>
+      {note && !open && (
+        <button
+          onClick={() => setShowAll((v) => !v)}
+          aria-expanded={showAll}
+          style={{
+            display: "block", width: "100%", textAlign: "left", background: "none",
+            border: "none", padding: 0, cursor: "pointer", fontFamily: mono,
+          }}
+        >
+          <div style={{ ...lbl, fontSize: 9, color: C.steel, marginBottom: 4 }}>
+            Your note · {new Date(note.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+          </div>
+          <div style={{ fontSize: 13, color: C.text, lineHeight: 1.6 }}>{note.text}</div>
+        </button>
+      )}
+
+      {showAll && history.length > 1 && (
+        <div style={{ marginTop: 10, borderLeft: `2px solid ${C.line}`, paddingLeft: 10 }}>
+          {history.slice(1).map((n) => (
+            <div key={n.date} style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 10, color: C.faint, fontFamily: mono }}>
+                {new Date(n.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+              </div>
+              <div style={{ fontSize: 12, color: C.dim, lineHeight: 1.6 }}>{n.text}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {open ? (
+        <div style={{ marginTop: note ? 10 : 0 }}>
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="What to remember next time — cue, grip, setup, what hurt"
+            aria-label={`Note for ${exName}`}
+            rows={3}
+            style={{
+              width: "100%", padding: 12, fontSize: 14, background: C.bg,
+              border: `1px solid ${C.line}`, borderRadius: 0, color: C.text,
+              fontFamily: mono, boxSizing: "border-box", resize: "vertical", lineHeight: 1.6,
+            }}
+          />
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <button onClick={commit} disabled={!draft.trim()} style={{ ...bigBtn, opacity: draft.trim() ? 1 : 0.35, padding: 12, fontSize: 12 }}>
+              Save note
+            </button>
+            <button onClick={() => { setDraft(""); setOpen(false); }} style={{ ...ghostBtn, padding: 12, fontSize: 12, width: "auto" }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        note && (
+          <button
+            onClick={() => setOpen(true)}
+            style={{ background: "none", border: "none", color: C.faint, fontSize: 11, cursor: "pointer", padding: "10px 0 0", fontFamily: mono }}
+          >
+            Add another note
+          </button>
+        )
+      )}
+    </div>
+  );
+}
+
+function NotesView({ state, save }) {
+  const notes = state.notes || {};
+  const names = Object.keys(notes).sort();
+
+  if (names.length === 0)
+    return (
+      <p style={{ color: C.dim, fontSize: 14, lineHeight: 1.7 }}>
+        No notes yet. On any exercise, tap <strong style={{ color: C.text }}>Add a note</strong> — a cue that
+        worked, a grip that felt better, something that hurt. It shows up on that exercise next time you do it.
+      </p>
+    );
+
+  return (
+    <>
+      <p style={{ fontSize: 12, color: C.faint, lineHeight: 1.7, marginBottom: 18 }}>
+        Each note appears on its exercise the next time it comes up. Oldest at the bottom, so you can see
+        what you've changed.
+      </p>
+      {names.map((name) => (
+        <div key={name} style={card}>
+          <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 10 }}>{name}</div>
+          {notes[name].map((n) => (
+            <div key={n.date} style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+              <div style={{ fontSize: 10, color: C.faint, fontFamily: mono, minWidth: 46, paddingTop: 3 }}>
+                {new Date(n.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+              </div>
+              <div style={{ flex: 1, fontSize: 13, color: C.dim, lineHeight: 1.6 }}>{n.text}</div>
+              <button
+                onClick={() => save(S.deleteNote(state, name, n.date))}
+                aria-label={`Delete note from ${new Date(n.date).toLocaleDateString()}`}
+                style={{ background: "none", border: "none", color: C.faint, fontSize: 14, cursor: "pointer", padding: "0 2px", fontFamily: mono }}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      ))}
+    </>
+  );
+}
