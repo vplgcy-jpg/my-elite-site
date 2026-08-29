@@ -6,6 +6,7 @@
 import { PROGRAMS, buildSession, round5, REST } from "./program.js";
 import { DEFAULT_INJURIES, adaptExercises, adaptationNeed } from "./injury.js";
 import { dayKey, DEFAULT_TARGETS } from "./food.js";
+import { applySwaps } from "./alternatives.js";
 
 export const SCHEMA = 2;
 
@@ -22,6 +23,7 @@ export function newState(opts = {}) {
     lastWeights: {},
     symptoms: [],
     mobilityLog: {},
+    swaps: {},
     food: {},
     customFoods: [],
     foodOverrides: {},
@@ -80,8 +82,19 @@ export function sessionFor(state, dayIdx) {
     ...built,
     need,
     adapted: on,
-    exercises: on ? adaptExercises(built.exercises, injuries) : built.exercises,
+    exercises: applySwaps(
+      on ? adaptExercises(built.exercises, injuries) : built.exercises,
+      state.swaps
+    ),
   };
+}
+
+/* Swap an exercise for one this gym actually has. Sticks until changed. */
+export function swapExercise(state, from, to) {
+  const swaps = { ...(state.swaps || {}) };
+  if (!to || to === from) delete swaps[from];
+  else swaps[from] = to;
+  return { ...state, swaps };
 }
 
 export const sessionKey = (state, dayIdx) =>
@@ -114,6 +127,18 @@ export function setReps(state, dayIdx, exId, setIdx, reps) {
   return writeLog(state, dayIdx, {
     ...log,
     sets: { ...log.sets, [k]: { ...prev, done: true, reps } },
+  });
+}
+
+/* How a set was done — full, assisted, or a negative. Only meaningful on
+   pull-ups and dips, where the same exercise covers all three. */
+export function setStyle(state, dayIdx, exId, setIdx, style, assistWeight) {
+  const log = getLog(state, dayIdx);
+  const k = `${exId}-${setIdx}`;
+  const prev = log.sets[k] || { done: true, reps: null, hard: false };
+  return writeLog(state, dayIdx, {
+    ...log,
+    sets: { ...log.sets, [k]: { ...prev, done: true, style, assist: assistWeight ?? prev.assist ?? null } },
   });
 }
 
@@ -174,7 +199,9 @@ export function finishSession(state, dayIdx, now = new Date()) {
     substitutedFrom: e.substitutedFrom || null,
     sets: Array.from({ length: e.targetSets }, (_, i) => {
       const s = log.sets[`${e.id}-${i}`];
-      return s ? { done: true, reps: s.reps, hard: !!s.hard } : { done: false, reps: null, hard: false };
+      return s
+        ? { done: true, reps: s.reps, hard: !!s.hard, style: s.style || null, assist: s.assist ?? null }
+        : { done: false, reps: null, hard: false, style: null, assist: null };
     }),
   }));
   const total = countSets(exercises);

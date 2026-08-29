@@ -217,7 +217,7 @@ describe("injury awareness", () => {
   it("says what each substitution replaced", async () => {
     render(<GymJournal />);
     await screen.findByRole("heading", { name: "Upper Power" });
-    expect(screen.getByText("swapped in for T bar rows")).toBeInTheDocument();
+    expect(screen.getByText("in place of T bar rows")).toBeInTheDocument();
   });
 
   it("lets you see the day as written, flags and all", async () => {
@@ -235,8 +235,13 @@ describe("injury awareness", () => {
     render(<GymJournal />);
     await screen.findByRole("heading", { name: "Upper Power" });
     await user.click(screen.getByRole("button", { name: "Pull + Shoulders" }));
-    expect((await screen.findAllByText(/Watching · Right periscapular/i)).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/You chose to keep this one/i).length).toBeGreaterThan(0);
+    // low-priority flags are one dim line, not a box — a warning on every card
+    // every session stops registering as a warning
+    const quiet = await screen.findAllByText(/shoulder · kept as written/i);
+    expect(quiet.length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Watching · Right periscapular/i)).not.toBeInTheDocument();
+    await user.click(quiet[0]);
+    expect(await screen.findByText(/You chose to keep this one/i)).toBeInTheDocument();
   });
 
   it("leaves the lower day's leg work unflagged", async () => {

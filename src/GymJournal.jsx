@@ -9,6 +9,7 @@ import {
 import { coachReport, applyRecommendations, inSessionAdvice, strengthSeries, readiness, SRC } from "./lib/coach.js";
 import { injuryFlag, cappedWeight, STAGES, REGIONS, DEFAULT_INJURIES, ADDABLE } from "./lib/injury.js";
 import { mobilityFor, DAILY_JOINT, PERISCAP_EXTRA } from "./lib/mobility.js";
+import { alternativesFor, isAssistable, SET_STYLES } from "./lib/alternatives.js";
 import { FOODS, byId, dayTotals, remaining, suggest, targetsFor } from "./lib/food.js";
 import PlateBar from "./components/PlateBar.jsx";
 import SetGrid from "./components/SetGrid.jsx";
@@ -462,7 +463,10 @@ function Today({ state, save, dayIdx, setDayIdx, rest, setView }) {
 
 /* --------------------------------------------------------- exercise card */
 function ExerciseCard({ ex, state, log, dayIdx, save, onToggle, showWarm, setShowWarm }) {
+  const [swapping, setSwapping] = useState(false);
   const flag = injuryFlag(ex.name, state.injuries);
+  const alts = alternativesFor(ex.swappedFrom || ex.name);
+  const assistable = isAssistable(ex.name);
   const capped = ex.weight ? cappedWeight(ex.weight, state.injuries, ex.name) : { weight: null, capped: false };
   const weight = capped.weight;
   const lastWeight = state.lastWeights?.[ex.name];
@@ -493,9 +497,9 @@ function ExerciseCard({ ex, state, log, dayIdx, save, onToggle, showWarm, setSho
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
         <div>
           <div style={{ fontSize: ex.kind === "main" ? 17 : 16, fontWeight: 700 }}>{ex.name}</div>
-          {ex.substitutedFrom && (
-            <div style={{ fontSize: 11, color: C.mob, marginTop: 3 }}>
-              swapped in for {ex.substitutedFrom}
+          {(ex.swappedFrom || ex.substitutedFrom) && (
+            <div style={{ fontSize: 11, color: C.faint, marginTop: 3, fontFamily: mono }}>
+              in place of {ex.swappedFrom || ex.substitutedFrom}
             </div>
           )}
         </div>
@@ -554,7 +558,9 @@ function ExerciseCard({ ex, state, log, dayIdx, save, onToggle, showWarm, setSho
           </div>
           {ex.note && <div style={{ fontSize: 12, color: C.steel, marginBottom: 12, lineHeight: 1.6 }}>{ex.note}</div>}
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-            <label htmlFor={`w-${ex.id}`} style={{ ...lbl, fontSize: 10 }}>Weight</label>
+            <label htmlFor={`w-${ex.id}`} style={{ ...lbl, fontSize: 10 }}>
+              {assistable ? "Assist" : "Weight"}
+            </label>
             <input
               id={`w-${ex.id}`}
               type="number" inputMode="numeric" min="0"
@@ -568,9 +574,15 @@ function ExerciseCard({ ex, state, log, dayIdx, save, onToggle, showWarm, setSho
               }}
             />
             {lastWeight ? (
-              <div style={{ fontSize: 12, color: C.faint }}>last time: {lastWeight} lbs</div>
+              <div style={{ fontSize: 12, color: C.faint }}>
+                last time: {lastWeight} lbs{assistable ? " of assist" : ""}
+              </div>
             ) : (
-              <div style={{ fontSize: 12, color: C.faint }}>first time — pick one that makes the last rep hard</div>
+              <div style={{ fontSize: 12, color: C.faint }}>
+                {assistable
+                  ? "how much the machine takes off you — less assist is harder"
+                  : "first time \u2014 pick one that makes the last rep hard"}
+              </div>
             )}
           </div>
         </>
@@ -580,10 +592,49 @@ function ExerciseCard({ ex, state, log, dayIdx, save, onToggle, showWarm, setSho
         exercise={ex}
         log={log}
         target={ex.targetReps}
+        assistable={assistable}
         onToggle={onToggle}
         onReps={(i, reps) => save(S.setReps(state, dayIdx, ex.id, i, reps))}
         onHard={(i, hard) => save(S.markHard(state, dayIdx, ex.id, i, hard))}
+        onStyle={(i, style) => save(S.setStyle(state, dayIdx, ex.id, i, style))}
       />
+
+      {alts.length > 0 && (
+        <div style={{ marginTop: 12, borderTop: `1px solid ${C.line}`, paddingTop: 10 }}>
+          <button
+            onClick={() => setSwapping((v) => !v)}
+            aria-expanded={swapping}
+            style={{ background: "none", border: "none", color: C.faint, fontSize: 11, cursor: "pointer", padding: 0, fontFamily: mono }}
+          >
+            {swapping ? "Close" : "My gym doesn\u2019t have this \u2014 swap it"}
+          </button>
+          {swapping && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+              {[ex.swappedFrom || ex.name, ...alts].map((name) => {
+                const on = name === ex.name;
+                return (
+                  <button
+                    key={name}
+                    onClick={() => {
+                      save(S.swapExercise(state, ex.swappedFrom || ex.name, name));
+                      setSwapping(false);
+                    }}
+                    style={{
+                      padding: "9px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer",
+                      fontFamily: mono, borderRadius: 0,
+                      background: on ? C.steel : "transparent",
+                      color: on ? ink : C.dim,
+                      border: `1px solid ${on ? C.steel : C.line}`,
+                    }}
+                  >
+                    {name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {advice && (
         <div style={{ marginTop: 12, padding: 12, borderRadius: 0, background: advice.tone === "fail" ? "rgba(255,77,46,0.10)" : "rgba(255,179,0,0.10)", border: `1px solid ${advice.tone === "fail" ? C.fail : C.warn}` }}>
@@ -599,22 +650,41 @@ function ExerciseCard({ ex, state, log, dayIdx, save, onToggle, showWarm, setSho
 }
 
 function InjuryFlag({ flag }) {
-  const colour = flag.severity === "avoid" ? C.fail : flag.severity === "watch" ? C.steel : C.warn;
-  const word = flag.severity === "avoid" ? "Avoid" : flag.severity === "watch" ? "Watching" : "Caution";
+  const [open, setOpen] = useState(false);
+
+  /* Only a movement you should genuinely reconsider gets a box. Everything
+     else is a single dim line you can tap for the detail — a warning shown on
+     every card every session stops being a warning and starts being wallpaper,
+     and reading "CAUTION" ten times a workout is just discouraging. */
+  if (flag.severity !== "avoid") {
+    return (
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        style={{
+          display: "block", width: "100%", textAlign: "left", background: "none",
+          border: "none", borderLeft: `2px solid ${C.line}`, padding: "2px 0 2px 10px",
+          margin: "8px 0 0", cursor: "pointer", color: C.faint, fontSize: 11,
+          fontFamily: mono, lineHeight: 1.6,
+        }}
+      >
+        {open
+          ? flag.kept
+            ? "You chose to keep this one as written. Log a symptom if it bites."
+            : flag.stage.note
+          : `shoulder \u00b7 ${flag.kept ? "kept as written" : "keep the form tight"}`}
+      </button>
+    );
+  }
+
   return (
-    <div style={{ marginTop: 10, padding: 12, borderRadius: 0, border: `1px solid ${colour}`, background: "rgba(255,255,255,0.02)" }}>
-      <div style={{ ...lbl, fontSize: 10, color: colour, marginBottom: 6 }}>
-        {word} · {flag.injury.label}
+    <div style={{ marginTop: 10, padding: 12, border: `1px solid ${C.fail}` }}>
+      <div style={{ ...lbl, fontSize: 10, color: C.fail, marginBottom: 6 }}>
+        {`Avoid \u00b7 ${flag.injury.label}`}
       </div>
-      {flag.kept ? (
-        <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.6 }}>
-          You chose to keep this one as written. Loading it directly — log a symptom below if it bites.
-        </div>
-      ) : (
-        <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.6 }}>
-          {flag.swap || flag.stage.note}
-        </div>
-      )}
+      <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.6 }}>
+        {flag.swap || flag.stage.note}
+      </div>
     </div>
   );
 }

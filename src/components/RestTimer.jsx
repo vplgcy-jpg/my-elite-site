@@ -35,11 +35,14 @@ export function useRestTimer(settings = {}) {
   const remaining = timer ? timer.duration - elapsed : 0;
 
   useEffect(() => {
-    if (!timer || fired.current || remaining > 0) return;
+    if (!timer || fired.current || remaining > 0) return undefined;
     fired.current = true;
     if (settings.vibrate && typeof navigator !== "undefined" && navigator.vibrate)
-      navigator.vibrate([200, 100, 200]);
+      navigator.vibrate([180, 90, 180]);
     if (settings.sound) beep();
+    /* Show "rest done" briefly, then get out of the way. */
+    const id = setTimeout(() => setTimer(null), 5000);
+    return () => clearTimeout(id);
   }, [timer, remaining, settings.sound, settings.vibrate]);
 
   return { timer, remaining, start, stop, bump, running: !!timer };
@@ -50,25 +53,29 @@ function beep() {
     const Ctx = window.AudioContext || window.webkitAudioContext;
     if (!Ctx) return;
     const ctx = new Ctx();
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
-    o.connect(g);
-    g.connect(ctx.destination);
-    o.frequency.value = 660;
-    g.gain.setValueAtTime(0.001, ctx.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-    o.start();
-    o.stop(ctx.currentTime + 0.55);
+    /* Two short tones — a single one is easy to miss in a loud gym, and a
+       double reads unmistakably as "your rest is up". */
+    for (const at of [0, 0.28]) {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g);
+      g.connect(ctx.destination);
+      o.frequency.value = 880;
+      const t = ctx.currentTime + at;
+      g.gain.setValueAtTime(0.001, t);
+      g.gain.exponentialRampToValueAtTime(0.3, t + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+      o.start(t);
+      o.stop(t + 0.2);
+    }
   } catch {
     /* audio is a nicety, never a failure */
   }
 }
 
 const fmt = (s) => {
-  const neg = s < 0;
-  const a = Math.abs(s);
-  return `${neg ? "+" : ""}${Math.floor(a / 60)}:${String(a % 60).padStart(2, "0")}`;
+  const a = Math.max(0, s);
+  return `${Math.floor(a / 60)}:${String(a % 60).padStart(2, "0")}`;
 };
 
 export default function RestTimerBar({ timer, remaining, stop, bump }) {
@@ -98,7 +105,7 @@ export default function RestTimerBar({ timer, remaining, stop, bump }) {
         {fmt(remaining)}
       </div>
       <div style={{ flex: 1, fontSize: 12, color: C.dim, lineHeight: 1.4 }}>
-        {over ? "Rest done — next set." : timer.label}
+        {over ? "Rest done. Go when you\u2019re ready." : timer.label}
       </div>
       <button onClick={() => bump(30)} aria-label="Add 30 seconds to rest" style={tBtn}>+30</button>
       <button onClick={stop} aria-label="Skip rest" style={{ ...tBtn, color: C.dim }}>Skip</button>

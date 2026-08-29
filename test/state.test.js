@@ -117,8 +117,8 @@ describe("finishSession", () => {
     s = S.setReps(s, 0, "main", 1, 4);
     const f = S.finishSession(s, 0, new Date("2026-03-01"));
     const main = f.history[0].exercises.find((e) => e.kind === "main");
-    expect(main.sets[0]).toEqual({ done: true, reps: null, hard: false });
-    expect(main.sets[1]).toEqual({ done: true, reps: 4, hard: false });
+    expect(main.sets[0]).toMatchObject({ done: true, reps: null, hard: false });
+    expect(main.sets[1]).toMatchObject({ done: true, reps: 4, hard: false });
     expect(main.sets[2].done).toBe(false);
     expect(main.weight).toBe(140);
   });

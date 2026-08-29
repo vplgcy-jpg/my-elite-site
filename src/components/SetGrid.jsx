@@ -1,11 +1,12 @@
 import React, { useRef, useState } from "react";
-import { C, mono } from "../theme.js";
+import { C, ink, mono } from "../theme.js";
+import { SET_STYLES } from "../lib/alternatives.js";
 
 /* One tap = you hit the prescribed reps. That's ~90% of sets, so it stays a
    single tap and nothing else. Recording a short set is a second, deliberate
    gesture: long-press a set, or open the row editor. The deviation is the
    only part that carries information, so that's the only part worth typing. */
-export default function SetGrid({ exercise, log, onToggle, onReps, onHard, target }) {
+export default function SetGrid({ exercise, log, onToggle, onReps, onHard, onStyle, target, assistable }) {
   const [open, setOpen] = useState(false);
   const press = useRef(null);
   const longFired = useRef(false);
@@ -53,51 +54,96 @@ export default function SetGrid({ exercise, log, onToggle, onReps, onHard, targe
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 3,
               }}
             >
-              {done ? (short ? s.reps : s.hard ? "✓!" : "✓") : i + 1}
+              {done
+                ? s.style === "negative"
+                  ? "NEG"
+                  : s.style === "assist"
+                    ? "AST"
+                    : short
+                      ? s.reps
+                      : s.hard
+                        ? "✓!"
+                        : "✓"
+                : i + 1}
             </button>
           );
         })}
       </div>
 
-      {numericTarget ? (
+      {numericTarget || assistable ? (
         <button
           onClick={() => setOpen((o) => !o)}
           aria-expanded={open}
           style={{
             marginTop: 8, background: "none", border: "none", color: C.faint,
             fontSize: 12, cursor: "pointer", padding: "4px 0", textAlign: "left",
+            fontFamily: mono,
           }}
         >
-          {open ? "Hide rep detail" : "Missed reps? Log what you actually got"}
+          {open
+            ? "Hide set detail"
+            : assistable
+              ? "Log reps, or mark a set assisted / negative"
+              : "Missed reps? Log what you actually got"}
         </button>
       ) : null}
 
-      {open && numericTarget ? (
+      {open && (numericTarget || assistable) ? (
         <div style={{ marginTop: 6, borderTop: `1px solid ${C.line}`, paddingTop: 10 }}>
           {Array.from({ length: n }).map((_, i) => {
             const s = log.sets[`${exercise.id}-${i}`];
             if (!s?.done) return null;
             const reps = s.reps == null ? numericTarget : s.reps;
             return (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                <div style={{ fontSize: 12, color: C.dim, width: 44 }}>Set {i + 1}</div>
-                <button onClick={() => onReps(i, Math.max(0, reps - 1))} aria-label={`Set ${i + 1}: one rep fewer`} style={stepper}>−</button>
-                <div style={{ fontFamily: mono, fontSize: 17, fontWeight: 700, minWidth: 30, textAlign: "center", color: reps < numericTarget ? C.warn : C.text }}>
-                  {reps}
+              <div key={i} style={{ marginBottom: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ fontSize: 12, color: C.dim, width: 44, fontFamily: mono }}>Set {i + 1}</div>
+                  {numericTarget ? (
+                    <>
+                      <button onClick={() => onReps(i, Math.max(0, reps - 1))} aria-label={`Set ${i + 1}: one rep fewer`} style={stepper}>−</button>
+                      <div style={{ fontFamily: mono, fontSize: 17, fontWeight: 700, minWidth: 30, textAlign: "center", color: reps < numericTarget ? C.warn : C.text }}>
+                        {reps}
+                      </div>
+                      <button onClick={() => onReps(i, reps + 1)} aria-label={`Set ${i + 1}: one rep more`} style={stepper}>+</button>
+                    </>
+                  ) : null}
+                  <button
+                    onClick={() => onHard(i, !s.hard)}
+                    aria-pressed={!!s.hard}
+                    aria-label={`Set ${i + 1}: flag as hard`}
+                    style={{
+                      ...stepper, width: "auto", padding: "0 12px", fontSize: 12,
+                      color: s.hard ? C.warn : C.faint,
+                      borderColor: s.hard ? C.warn : C.line,
+                    }}
+                  >
+                    Hard
+                  </button>
                 </div>
-                <button onClick={() => onReps(i, reps + 1)} aria-label={`Set ${i + 1}: one rep more`} style={stepper}>+</button>
-                <button
-                  onClick={() => onHard(i, !s.hard)}
-                  aria-pressed={!!s.hard}
-                  aria-label={`Set ${i + 1}: flag as hard`}
-                  style={{
-                    ...stepper, width: "auto", padding: "0 12px", fontSize: 12,
-                    color: s.hard ? C.warn : C.faint,
-                    borderColor: s.hard ? C.warn : C.line,
-                  }}
-                >
-                  Hard
-                </button>
+                {assistable && onStyle ? (
+                  <div style={{ display: "flex", gap: 5, marginTop: 6, paddingLeft: 52 }}>
+                    {SET_STYLES.map((st) => {
+                      const on = (s.style || "full") === st.key;
+                      return (
+                        <button
+                          key={st.key}
+                          onClick={() => onStyle(i, st.key)}
+                          aria-pressed={on}
+                          aria-label={`Set ${i + 1}: ${st.label} \u2014 ${st.hint}`}
+                          style={{
+                            flex: 1, padding: "8px 4px", fontSize: 10, fontWeight: 700,
+                            cursor: "pointer", fontFamily: mono, borderRadius: 0,
+                            background: on ? C.steel : "transparent",
+                            color: on ? ink : C.faint,
+                            border: `1px solid ${on ? C.steel : C.line}`,
+                          }}
+                        >
+                          {st.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
               </div>
             );
           })}
