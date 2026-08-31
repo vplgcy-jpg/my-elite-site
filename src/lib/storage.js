@@ -57,3 +57,32 @@ export async function save(value, key = KEY) {
 export function exportJSON(state) {
   return JSON.stringify(state, null, 2);
 }
+
+/* Restore from an export. Deliberately strict: this overwrites a training log,
+   so it validates the shape and reports what it found rather than trusting the
+   paste and discovering the problem afterwards. */
+export function parseImport(text) {
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    return { ok: false, reason: "That isn't valid JSON. Copy the whole thing, including the outer { }." };
+  }
+  if (!data || typeof data !== "object" || Array.isArray(data))
+    return { ok: false, reason: "That's valid JSON but not a training log." };
+  if (!data.tm || typeof data.tm !== "object")
+    return { ok: false, reason: "No training maxes in there — that isn't a Saiyan Journal export." };
+
+  return {
+    ok: true,
+    data,
+    summary: {
+      sessions: Array.isArray(data.history) ? data.history.length : 0,
+      cycle: data.cycle || 1,
+      lifts: Object.entries(data.tm).filter(([, v]) => v > 0).map(([k, v]) => `${k} ${v}`),
+      symptoms: Array.isArray(data.symptoms) ? data.symptoms.length : 0,
+      notes: data.notes ? Object.keys(data.notes).length : 0,
+      foodDays: data.food ? Object.keys(data.food).length : 0,
+    },
+  };
+}

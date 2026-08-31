@@ -1404,7 +1404,11 @@ function InjuryPanel({ state, save }) {
 function Settings({ state, save }) {
   const set = (k, v) => save({ ...state, settings: { ...state.settings, [k]: v } });
   const [copied, setCopied] = useState(false);
+  const [paste, setPaste] = useState("");
+  const [preview, setPreview] = useState(null);
+  const [err, setErr] = useState(null);
 
+  const [manual, setManual] = useState(null);
   const copy = async () => {
     const json = Store.exportJSON(state);
     try {
@@ -1412,7 +1416,9 @@ function Settings({ state, save }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
     } catch {
-      setCopied(false);
+      /* Clipboard access is blocked in some in-app browsers. Show the text so
+         it can be selected by hand rather than failing silently. */
+      setManual(json);
     }
   };
 
@@ -1456,12 +1462,87 @@ function Settings({ state, save }) {
       </div>
 
       <div style={card}>
+        <div style={{ ...lbl, marginBottom: 10 }}>Move or restore your log</div>
+        <p style={{ fontSize: 12, color: C.dim, lineHeight: 1.7, marginBottom: 12 }}>
+          Your log is saved in this browser only. Opening the app somewhere else shows an empty copy —
+          nothing is lost, it just lives where you entered it. Copy it there, paste it here.
+        </p>
+        <textarea
+          value={paste}
+          onChange={(e) => { setPaste(e.target.value); setPreview(null); setErr(null); }}
+          placeholder="Paste an exported log here"
+          aria-label="Paste exported data"
+          rows={3}
+          style={{
+            width: "100%", padding: 12, fontSize: 12, background: C.bg,
+            border: `1px solid ${err ? C.fail : C.line}`, borderRadius: 0, color: C.text,
+            fontFamily: mono, boxSizing: "border-box", resize: "vertical",
+          }}
+        />
+        {err && <div role="alert" style={{ fontSize: 12, color: C.fail, marginTop: 8, lineHeight: 1.6 }}>{err}</div>}
+        {preview && (
+          <div style={{ marginTop: 10, padding: 12, border: `1px solid ${C.steel}` }}>
+            <div style={{ ...lbl, fontSize: 9, color: C.steel, marginBottom: 6 }}>Found in that paste</div>
+            <div style={{ fontSize: 13, color: C.text, lineHeight: 1.7 }}>
+              {preview.summary.sessions} session{preview.summary.sessions === 1 ? "" : "s"} · cycle {preview.summary.cycle}
+              {preview.summary.notes > 0 && ` · ${preview.summary.notes} noted exercise${preview.summary.notes === 1 ? "" : "s"}`}
+              {preview.summary.symptoms > 0 && ` · ${preview.summary.symptoms} symptom entr${preview.summary.symptoms === 1 ? "y" : "ies"}`}
+            </div>
+            <div style={{ fontSize: 12, color: C.dim, marginTop: 6, fontFamily: mono }}>
+              {preview.summary.lifts.join(" · ") || "no maxes set"}
+            </div>
+          </div>
+        )}
+        <button
+          onClick={() => {
+            if (!preview) {
+              const r = Store.parseImport(paste);
+              if (!r.ok) { setErr(r.reason); return; }
+              setPreview(r);
+              return;
+            }
+            const before = state;
+            save(S.migrate(preview.data), { undo: before, undoLabel: "Log restored" });
+            setPaste(""); setPreview(null);
+          }}
+          disabled={!paste.trim()}
+          style={{ ...bigBtn, marginTop: 12, opacity: paste.trim() ? 1 : 0.35 }}
+        >
+          {preview ? "Replace what's here with that" : "Check this paste"}
+        </button>
+        {preview && (
+          <button onClick={() => { setPreview(null); }} style={{ ...ghostBtn, marginTop: 10 }}>
+            Cancel
+          </button>
+        )}
+      </div>
+
+      <div style={card}>
         <div style={{ ...lbl, marginBottom: 10 }}>Your data</div>
         <p style={{ fontSize: 12, color: C.dim, lineHeight: 1.7, marginBottom: 14 }}>
           {(state.history || []).length} sessions and {(state.symptoms || []).length} symptom entries live in
           one browser key. Copy it somewhere occasionally — that's the difference between a bad day and starting over.
         </p>
         <button onClick={copy} style={bigBtn}>{copied ? "Copied to clipboard" : "Copy my data as JSON"}</button>
+        {manual && (
+          <>
+            <p style={{ fontSize: 12, color: C.warn, lineHeight: 1.7, margin: "12px 0 8px" }}>
+              This browser blocked the clipboard. Select all of this and copy it by hand.
+            </p>
+            <textarea
+              readOnly
+              value={manual}
+              aria-label="Your data as JSON"
+              rows={6}
+              onFocus={(e) => e.target.select()}
+              style={{
+                width: "100%", padding: 12, fontSize: 11, background: C.bg,
+                border: `1px solid ${C.line}`, borderRadius: 0, color: C.dim,
+                fontFamily: mono, boxSizing: "border-box",
+              }}
+            />
+          </>
+        )}
       </div>
     </>
   );
